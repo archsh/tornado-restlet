@@ -2,7 +2,7 @@
 from distutils.core import setup
 from restlet import __version__
 
-setup(name='restlet',
+setup(name='Tornado-RESTlet',
       version=__version__,
       description='RESTlet, a RESTful extention on Tornado.',
       long_description=open("README.md").read(),
@@ -13,4 +13,8 @@ setup(name='restlet',
       package_data={'restlet': ['stuff']},
       license="Public domain",
       platforms=["any"],
+      install_requires=[
+          'tornado',
+          'SQLAlchemy'
+      ],
       url='https://github.com/archsh/tornado-restlet')
