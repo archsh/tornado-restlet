@@ -17,17 +17,20 @@ class User(Base):
 
 class UserHandler(RestletHandler):
     """UserHandler to process User table."""
-    __table__ = User
-    __allowed__ = ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
-    __denied__ = None  # Can be a tuple of HTTP METHODs
-    __changable__ = ('fullname', 'password')  # None will make all fields changable
-    __readonly__ = ('name', 'id')  # None means no field is read only
-    __invisible__ = ('password', )  # None means no fields is invisible
-    __encoders__ = None  # {'password': lambda x, obj: hashlib.new('md5', x).hexdigest()}
-                         # or use decorator @encoder(*fields)
-    __decoders__ = None  # User a dict or decorator @decoder(*fields)
-    __autovalues__ = None  # User a dict or decorator @autovalue(*fields)
-    __extensible__ = None  # None means no fields is extensible or a tuple with fields.
+
+    class Meta:
+        testing = True
+        table = User
+        allowed = ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
+        denied = None  # Can be a tuple of HTTP METHODs
+        changable = ('fullname', 'password')  # None will make all fields changable
+        readonly = ('name', 'id')  # None means no field is read only
+        invisible = ('password', )  # None means no fields is invisible
+        encoders = None  # {'password': lambda x, obj: hashlib.new('md5', x).hexdigest()}
+                             # or use decorator @encoder(*fields)
+        decoders = None  # User a dict or decorator @decoder(*fields)
+        generators = None  # User a dict or decorator @generator(*fields)
+        extensible = None  # None means no fields is extensible or a tuple with fields.
 
     @encoder('password')
     def password_encoder(self, passwd, record=None):
