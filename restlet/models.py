@@ -74,6 +74,14 @@ class ModelBase(type):
 
 
 class Model(object):
+    """The base model map to database.
+    A classic model should be like:
+    >>> class Example(Model):
+    >>>        id = Column(Integer, primary_key=True)
+    >>>        name = Column(String(32))
+    >>>        desc = Column(Text, null=True)
+
+    """
     __metaclass__ = ModelBase
     _deferred = False
 
