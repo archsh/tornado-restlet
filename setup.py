@@ -2,9 +2,9 @@
 from distutils.core import setup
 from restlet import __version__
 
-setup(name='Tornado-RESTlet',
+setup(name='tornado-restlet',
       version=__version__,
-      description='RESTlet, a RESTful extention on Tornado.',
+      description='Restlet, a RESTful extention on Tornado.',
       long_description=open("README.md").read(),
       author='Mingcai SHEN',
       author_email='archsh@gmail.com',
@@ -14,7 +14,10 @@ setup(name='Tornado-RESTlet',
       license="Public domain",
       platforms=["any"],
       install_requires=[
-          'tornado',
-          'SQLAlchemy'
+          'tornado>=3.1.1',
+          'SQLAlchemy>=0.8.2',
+          'simplejson>=2.3.2',
+          'lxml>=3.2.4',
+          'PyYAML>=3.10'
       ],
       url='https://github.com/archsh/tornado-restlet')
