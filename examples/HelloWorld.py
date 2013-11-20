@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from restlet.application import Application
-from restlet.handler import RestletHandler, encoder, decoder
+from restlet.handler import RestletHandler, encoder, decoder, route
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, Sequence
 
@@ -36,6 +36,11 @@ class UserHandler(RestletHandler):
     def password_encoder(self, passwd, record=None):
         import hashlib
         return hashlib.new('md5', passwd).hexdigest()
+
+    @route(r'/(?P<uid>[0-9]+)/login', 'POST', 'PUT')
+    def do_login(self, *args, **kwargs):
+        print "OK, It's done!: %s, %s" % (args, kwargs)
+        self.write("OK, It's done!: %s, %s" % (args, kwargs))
 
 
 if __name__ == "__main__":
