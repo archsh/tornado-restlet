@@ -22,7 +22,10 @@ def encoder(*fields):
     assert fields
 
     def wrap(f):
-        f.__encodes__ = fields
+        if hasattr(f, '__encodes__'):
+            f.__encodes__.extends(fields)
+        else:
+            f.__encodes__ = fields
         return f
     return wrap
 
@@ -40,7 +43,10 @@ def decoder(*fields):
     assert fields
 
     def wrap(f):
-        f.__decodes__ = fields
+        if hasattr(f, '__decodes__'):
+            f.__decodes__.extends(fields)
+        else:
+            f.__decodes__ = fields
         return f
     return wrap
 
@@ -58,7 +64,10 @@ def generator(*fields):
     assert fields
 
     def wrap(f):
-        f.__generates__ = fields
+        if hasattr(f, '__generates__'):
+            f.__generates__.extends(fields)
+        else:
+            f.__generates__ = fields
         return f
     return wrap
 
@@ -78,7 +87,10 @@ def route(pattern, *methods, **kwargs):
     assert pattern
 
     def wrap(f):
-        f.__route__ = (pattern, methods, kwargs)
+        if hasattr(f, '__route__'):
+            f.__route__.append((pattern, methods, kwargs))
+        else:
+            f.__route__ = [(pattern, methods, kwargs)]
         return f
     return wrap
 
@@ -102,6 +114,8 @@ class URLSpec(object):
         * ``name`` (optional): A name for this handler.  Used by
           `Application.reverse_url`.
         """
+        if not pattern.startswith('/') and not pattern.startswith('^'):
+            pattern = r'/' + pattern
         if not pattern.endswith('$'):
             pattern += '$'
         self.regex = re.compile(pattern)
@@ -184,9 +198,7 @@ class HandlerBase(type):
                 for f in v.__generates__:
                     attr_meta.generators[f] = v
             elif hasattr(v, '__route__'):
-                attr_meta.routes.append(
-                    URLSpec(v.__route__[0], v, v.__route__[1], v.__route__[2])
-                )
+                attr_meta.routes.extend([URLSpec(x[0], v, x[1], x[2]) for x in v.__route__])
         new_class = super_new(cls, name, bases, attrs)
         new_class.add_to_class('_meta', attr_meta)
         if attr_meta.table is not None:
