@@ -1,5 +1,6 @@
 import re
 import sys
+import logging
 from tornado.web import RequestHandler, HTTPError
 from tornado import escape
 from tornado import httputil
@@ -241,23 +242,75 @@ class RestletHandler(RequestHandler):
 
     def __init__(self, *args, **kwargs):
         super(RestletHandler, self).__init__(*args, **kwargs)
+        self.logger = self.application.logger if hasattr(self.application, 'logger') \
+            else logging.getLogger('tornado.restlet')
+
+    def log(self, level, msg, *args, **kwargs):
+        self.logger.log(level, msg, *args, **kwargs)
 
     def get(self, *args, **kwargs):
+        self.logger.info('[%s] GET>', self.__class__.__name__)
+        self.logger.info('Request::headers> %s', self.request.headers)
+        self.logger.info('Request::path> %s', self.request.path)
+        self.logger.info('Request::uri> %s', self.request.uri)
+        self.logger.info('Request::query> %s', self.request.query)
+        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'GET'))
 
     def post(self, *args, **kwargs):
+        self.logger.info('[%s] POST>', self.__class__.__name__)
+        self.logger.info('[%s] GET>', self.__class__.__name__)
+        self.logger.info('Request::headers> %s', self.request.headers)
+        self.logger.info('Request::path> %s', self.request.path)
+        self.logger.info('Request::uri> %s', self.request.uri)
+        self.logger.info('Request::query> %s', self.request.query)
+        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'POST'))
 
     def put(self, *args, **kwargs):
+        self.logger.info('[%s] PUT>', self.__class__.__name__)
+        self.logger.info('[%s] GET>', self.__class__.__name__)
+        self.logger.info('Request::headers> %s', self.request.headers)
+        self.logger.info('Request::path> %s', self.request.path)
+        self.logger.info('Request::uri> %s', self.request.uri)
+        self.logger.info('Request::query> %s', self.request.query)
+        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'PUT'))
 
     def delete(self, *args, **kwargs):
+        self.logger.info('[%s] DELETE>', self.__class__.__name__)
+        self.logger.info('[%s] GET>', self.__class__.__name__)
+        self.logger.info('Request::headers> %s', self.request.headers)
+        self.logger.info('Request::path> %s', self.request.path)
+        self.logger.info('Request::uri> %s', self.request.uri)
+        self.logger.info('Request::query> %s', self.request.query)
+        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'DELETE'))
 
     def head(self, *args, **kwargs):
+        self.logger.info('[%s] HEAD>', self.__class__.__name__)
+        self.logger.info('[%s] GET>', self.__class__.__name__)
+        self.logger.info('Request::headers> %s', self.request.headers)
+        self.logger.info('Request::path> %s', self.request.path)
+        self.logger.info('Request::uri> %s', self.request.uri)
+        self.logger.info('Request::query> %s', self.request.query)
+        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'HEAD'))
 
     def options(self, *args, **kwargs):
+        self.logger.info('[%s] OPTIONS>', self.__class__.__name__)
+        self.logger.info('[%s] GET>', self.__class__.__name__)
+        self.logger.info('Request::headers> %s', self.request.headers)
+        self.logger.info('Request::path> %s', self.request.path)
+        self.logger.info('Request::uri> %s', self.request.uri)
+        self.logger.info('Request::query> %s', self.request.query)
+        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'OPTIONS'))
 
     @classmethod
@@ -267,6 +320,21 @@ class RestletHandler(RequestHandler):
         else:
             pattern = path + r'(?P<relpath>.*)'
         return pattern, cls
+
+    @property
+    def db_session(self):
+        """Return the db session(SQLAlchemy), will created a new session if it is neccesary.
+            None will present if the application does not have the new_db_session method implemented.
+        """
+        if hasattr(self, '_db_session_'):
+            return self._db_session_
+        else:
+            if hasattr(self.application, 'new_db_session') and hasattr(self.application.new_db_session, '__call__'):
+                sess = self.application.new_db_session()
+            else:
+                sess = None
+            setattr(self, '_db_session_', sess)
+            return self._db_session_
 
     def _handle_request_exception(self, e):
         self.log_exception(*sys.exc_info())
