@@ -1,19 +1,28 @@
 # -*- coding: utf-8 -*-
 class RestletError(Exception):
-    def __init__(self, error=500, status=None, message=None, *args, **kwargs):
+    _error_ = 500
+
+    def __init__(self, status=None, message=None, *args, **kwargs):
         super(RestletError, self).__init__(*args, **kwargs)
-        self.error = error
         self.status = status
         self.message = message
 
 
 class BadRequest(RestletError):
-    pass
+    _error_ = 400
 
 
 class Unauthorized(RestletError):
-    pass
+    _error_ = 401
 
 
-class Throttled(RestletError):
-    pass
+class NotFound(RestletError):
+    _error_ = 404
+
+
+class Forbidden(RestletError):
+    _error_ = 403
+
+
+class NotImplemented(RestletError):
+    _error_ = 501

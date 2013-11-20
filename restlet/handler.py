@@ -1,5 +1,4 @@
-from tornado.web import RequestHandler
-#from functools import update_wrapper, wraps
+from tornado.web import RequestHandler, HTTPError
 
 
 def encoder(*fields):
@@ -53,6 +52,26 @@ def generator(*fields):
 
     def wrap(f):
         f.__generates__ = fields
+        return f
+    return wrap
+
+
+def route(path, *methods):
+    """Decorator for route a specific path pattern to a method of RestletHandler instance.
+    methods can be giving if is only for specified HTTP method(s).
+    eg:
+    class UserHandler(RestletHandler):
+        ...
+        @route('login', 'POST','PUT'):
+        def do_login(self,*args, **kwrags):
+            ...
+            ...
+
+    """
+    assert path
+
+    def wrap(f):
+        f.__route__ = (path, methods)
         return f
     return wrap
 
@@ -156,3 +175,30 @@ class RestletHandler(RequestHandler):
     @classmethod
     def url_regx(cls, prefix=None):
         pass
+
+    def _execute(self, transforms, *args, **kwargs):
+        """Executes this request with the given output transforms."""
+        print 'transforms:', transforms
+        print 'args:', args
+        print 'kwargs:', kwargs
+        self._transforms = transforms
+        try:
+            if self.request.method not in self.SUPPORTED_METHODS:
+                raise HTTPError(405)
+            self.path_args = [self.decode_argument(arg) for arg in args]
+            self.path_kwargs = dict((k, self.decode_argument(v, name=k))
+                                    for (k, v) in kwargs.items())
+            # If XSRF cookies are turned on, reject form submissions without
+            # the proper cookie
+            if self.request.method not in ("GET", "HEAD", "OPTIONS") and \
+                    self.application.settings.get("xsrf_cookies"):
+                self.check_xsrf_cookie()
+            self._when_complete(self.prepare(), self._execute_method)
+        except Exception as e:
+            self._handle_request_exception(e)
+
+    def _execute_method(self):
+        if not self._finished:
+            method = getattr(self, self.request.method.lower())
+            self._when_complete(method(*self.path_args, **self.path_kwargs),
+                                self._execute_finish)
