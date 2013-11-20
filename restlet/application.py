@@ -1,4 +1,5 @@
 from tornado.web import Application
+import logging
 
 
 class RestletApplication(Application):
@@ -18,6 +19,8 @@ class RestletApplication(Application):
         else:
             self.db_engine = None
             self.session_maker = None
+        self.logger = logging.getLogger('tornado.restlet')
+        self.logger.setLevel(settings.get('loglevel', 'CRITICAL'))
 
     def new_db_session(self, *args, **kwargs):
         assert self.session_maker
