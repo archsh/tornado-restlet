@@ -56,22 +56,22 @@ def generator(*fields):
     return wrap
 
 
-def route(path, *methods):
+def route(pattern, *methods):
     """Decorator for route a specific path pattern to a method of RestletHandler instance.
     methods can be giving if is only for specified HTTP method(s).
     eg:
     class UserHandler(RestletHandler):
         ...
-        @route('login', 'POST','PUT'):
+        @route(r'/login', 'POST','PUT'):
         def do_login(self,*args, **kwrags):
             ...
             ...
 
     """
-    assert path
+    assert pattern
 
     def wrap(f):
-        f.__route__ = (path, methods)
+        f.__route__ = (pattern, methods)
         return f
     return wrap
 
@@ -88,7 +88,7 @@ class HandlerBase(type):
         if attr_meta is None:
             attr_meta = Meta()
         for k in ('table', 'allowed', 'denied', 'changable', 'readonly', 'invisible', 'order_by', 'encoders',
-                  'encoders', 'decoders', 'generators', 'extensible'):
+                  'encoders', 'decoders', 'generators', 'extensible', 'routes'):
             if not hasattr(attr_meta, k):
                 setattr(attr_meta, k, None)
         if attr_meta.allowed is None:
@@ -99,6 +99,7 @@ class HandlerBase(type):
             attr_meta.decoders = {}
         if attr_meta.generators is None:
             attr_meta.generators = {}
+        attr_meta.routes = {}
         for k, v in attrs.items():  # collecting decorated functions.
             if not hasattr(v, '__call__'):
                 continue
@@ -111,6 +112,8 @@ class HandlerBase(type):
             elif hasattr(v, '__generates__'):
                 for f in v.__generates__:
                     attr_meta.generators[f] = v
+            elif hasattr(v, '__route__'):
+                attr_meta.routes[v.__route__[0]] = (v.__route__[2], v)
         new_class = super_new(cls, name, bases, attrs)
         new_class.add_to_class('_meta', attr_meta)
         if attr_meta.table is not None:
@@ -131,18 +134,18 @@ class RestletHandler(RequestHandler):
         class UserHandler(RestletHandler):
             'UserHandler to process User table.'
 
-        class Meta:
-            table = User
-            allowed = ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
-            denied = None  # Can be a tuple of HTTP METHODs
-            changable = ('fullname', 'password')  # None will make all fields changable
-            readonly = ('name', 'id')  # None means no field is read only
-            invisible = ('password', )  # None means no fields is invisible
-            encoders = None  # {'password': lambda x, obj: hashlib.new('md5', x).hexdigest()}
-                                 # or use decorator @encoder(*fields)
-            decoders = None  # User a dict or decorator @decoder(*fields)
-            generators = None  # User a dict or decorator @generator(*fields)
-            extensible = None  # None means no fields is extensible or a tuple with fields.
+            class Meta:
+                table = User
+                allowed = ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
+                denied = None  # Can be a tuple of HTTP METHODs
+                changable = ('fullname', 'password')  # None will make all fields changable
+                readonly = ('name', 'id')  # None means no field is read only
+                invisible = ('password', )  # None means no fields is invisible
+                encoders = None  # {'password': lambda x, obj: hashlib.new('md5', x).hexdigest()}
+                                     # or use decorator @encoder(*fields)
+                decoders = None  # User a dict or decorator @decoder(*fields)
+                generators = None  # User a dict or decorator @generator(*fields)
+                extensible = None  # None means no fields is extensible or a tuple with fields.
 
         @encoder('password')
         def password_encoder(self, passwd, record=None):
@@ -173,8 +176,12 @@ class RestletHandler(RequestHandler):
         self.write('%s :> %s' % (self._meta.table, 'OPTIONS'))
 
     @classmethod
-    def url_regx(cls, prefix=None):
-        pass
+    def route_to(cls, path=None):
+        if not path:
+            pattern = r'/(?P<relpath>.*)'
+        else:
+            pattern = path + r'(?P<relpath>.*)'
+        return pattern, cls
 
     def _execute(self, transforms, *args, **kwargs):
         """Executes this request with the given output transforms."""

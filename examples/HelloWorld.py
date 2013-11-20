@@ -40,7 +40,7 @@ class UserHandler(RestletHandler):
 
 if __name__ == "__main__":
     import tornado.ioloop
-    application = Application([(r"/users", UserHandler)],
+    application = Application([UserHandler.route_to('/users'), ],
                               dburi='sqlite:///:memory:')
     application.listen(8888)
     tornado.ioloop.IOLoop.instance().start()
