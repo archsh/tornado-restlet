@@ -7,6 +7,10 @@ class RestletError(Exception):
         self.status = status
         self.message = message
 
+    @property
+    def error(self):
+        return self._error_
+
 
 class BadRequest(RestletError):
     _error_ = 400
@@ -16,12 +20,16 @@ class Unauthorized(RestletError):
     _error_ = 401
 
 
+class Forbidden(RestletError):
+    _error_ = 403
+
+
 class NotFound(RestletError):
     _error_ = 404
 
 
-class Forbidden(RestletError):
-    _error_ = 403
+class MethodNotAllowed(RestletError):
+    _error_ = 405
 
 
 class NotImplemented(RestletError):

@@ -7,6 +7,17 @@ from tornado import httputil
 from tornado.log import access_log, app_log, gen_log
 #from tornado.escape import utf8, _unicode
 #from tornado.util import bytes_type, unicode_type
+from . import exceptions
+
+try:
+    import simplejson as json
+except:
+    import json
+
+try:
+    import yaml
+except:
+    yaml = None
 
 
 def encoder(*fields):
@@ -162,6 +173,14 @@ class URLSpec(object):
         return ''.join(pieces), self.regex.groups
 
 
+def revert_list_of_qs(qs):
+    if not isinstance(qs, dict):
+        return
+    for k, v in qs.items():
+        if isinstance(v, list) and len(v) == 1 and isinstance(v[0], (str, unicode)):
+            qs[k] = v[0]
+
+
 class HandlerBase(type):
     """
     Metaclass for all models.
@@ -244,6 +263,34 @@ class RestletHandler(RequestHandler):
         super(RestletHandler, self).__init__(*args, **kwargs)
         self.logger = self.application.logger if hasattr(self.application, 'logger') \
             else logging.getLogger('tornado.restlet')
+        self.logger.info('Request: %s', dir(self.request))
+        ## Here we re-construct the request.query and request.arguments
+        ## the request.query is not a string of url query any more, it's converted to a disctionary;
+        ## and request.arguments will only take the request.body parsed values, not including values in query;
+        ## This helps to seperate the query of database and update request.
+        ## It's a waiste to re-construct query and arguments here again because the httpserver has already did it, but
+        ## we'll think about it later.
+        if self.request.method in ('POST', 'PUT', 'PATCH'):
+            content_type = self.request.headers.get('Content-Type', '')
+            self.request.arguments = {}
+            try:
+                if content_type.startswith('application/json'):
+                    # JSON
+                    self.request.arguments = json.loads(self.request.body)
+                elif content_type.startswith('application/x-yaml'):
+                    # YAML
+                    self.request.arguments = yaml.load(self.request.body)
+                else:
+                    httputil.parse_body_arguments(content_type,
+                                                  self.request.body,
+                                                  self.request.arguments,
+                                                  self.request.files)
+                    revert_list_of_qs(self.request.arguments)
+            except Exception, e:
+                self.logger.warning('Decoding request body failed according to content type (%s): %s', content_type, e)
+        if self.request.query:
+            self.request.query = escape.parse_qs_bytes(self.request.query, keep_blank_values=True)
+            revert_list_of_qs(self.request.query)
 
     def log(self, level, msg, *args, **kwargs):
         self.logger.log(level, msg, *args, **kwargs)
@@ -349,6 +396,8 @@ class RestletHandler(RequestHandler):
                 self.send_error(500, exc_info=sys.exc_info())
             else:
                 self.send_error(e.status_code, exc_info=sys.exc_info())
+        elif isinstance(e, exceptions.RestletError):
+            self.send_error(e.error, exc_info=sys.exc_info())
         else:
             self.send_error(500, exc_info=sys.exc_info())
 
@@ -357,7 +406,7 @@ class RestletHandler(RequestHandler):
         self._transforms = transforms
         try:
             if self.request.method not in self.SUPPORTED_METHODS:
-                raise HTTPError(405)
+                raise exceptions.MethodNotAllowed()
             self.path_args = [self.decode_argument(arg) for arg in args]
             self.path_kwargs = dict((k, self.decode_argument(v, name=k))
                                     for (k, v) in kwargs.items())
@@ -378,7 +427,7 @@ class RestletHandler(RequestHandler):
                     match = spec.regex.match(self.path_kwargs.get('relpath'))
                     if match:
                         if spec.methods and self.request.method not in spec.methods:
-                            raise HTTPError(405)
+                            raise exceptions.MethodNotAllowed()
                         method = spec.request_handler
                         if spec.regex.groups:
                             # None-safe wrapper around url_unescape to handle
@@ -397,7 +446,7 @@ class RestletHandler(RequestHandler):
                         break
                 ### else:
                 if not method:
-                    raise HTTPError(404)
+                    raise exceptions.NotFound()
                 self._when_complete(method(self, *self.path_args, **self.path_kwargs),
                                     self._execute_finish)
             else:
