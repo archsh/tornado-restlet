@@ -1,6 +1,7 @@
 import re
 import sys
 import logging
+from sqlalchemy import Column
 from tornado.web import RequestHandler, HTTPError
 from tornado import escape
 from tornado import httputil
@@ -8,12 +9,10 @@ from tornado.log import access_log, app_log, gen_log
 #from tornado.escape import utf8, _unicode
 #from tornado.util import bytes_type, unicode_type
 from . import exceptions
-
 try:
     import simplejson as json
 except:
     import json
-
 try:
     import yaml
 except:
@@ -127,7 +126,7 @@ class URLSpec(object):
           `Application.reverse_url`.
         """
         if not pattern.startswith('/') and not pattern.startswith('^'):
-            pattern = r'/' + pattern
+            pattern = r'^/' + pattern
         if not pattern.endswith('$'):
             pattern += '$'
         self.regex = re.compile(pattern)
@@ -181,6 +180,21 @@ def revert_list_of_qs(qs):
             qs[k] = v[0]
 
 
+def make_pk_regex(pk_clmns):
+    if isinstance(pk_clmns, Column):
+        if pk_clmns.type.__class__.__name__ in ('INT', 'BIGINT', 'SMALLINT', 'INTEGER', 'Integer',
+                                                'SmallInteger', 'BigInteger',):
+            return pk_clmns.name, r'(?P<%s>[0-9]+)' % pk_clmns.name
+        elif pk_clmns.type.__class__.__name__ in ('CHAR', 'VARCHAR', 'NCHAR', 'NVARCHAR', 'String', 'Unicode'):
+            return pk_clmns.name, r'(?P<%s>[0-9A-Za-z_-]+)' % pk_clmns.name
+        else:
+            return None, None
+    elif isinstance(pk_clmns, (list, tuple)):
+        return make_pk_regex(pk_clmns[0])
+    else:
+        return None, None
+
+
 class HandlerBase(type):
     """
     Metaclass for all models.
@@ -190,20 +204,18 @@ class HandlerBase(type):
             pass
         super_new = super(HandlerBase, cls).__new__
         attr_meta = attrs.pop('Meta', None)
-        if attr_meta is None:
-            attr_meta = Meta()
-        for k in ('table', 'allowed', 'denied', 'changable', 'readonly', 'invisible', 'order_by', 'encoders',
-                  'encoders', 'decoders', 'generators', 'extensible', 'routes'):
+        attr_meta = attr_meta or Meta()
+        for k in ('table', 'pk_regex', 'allowed', 'denied', 'changable', 'readonly', 'invisible', 'order_by',
+                  'encoders', 'encoders', 'decoders', 'generators', 'extensible', 'routes'):
             if not hasattr(attr_meta, k):
                 setattr(attr_meta, k, None)
-        if attr_meta.allowed is None:
-            attr_meta.allowed = ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
-        if attr_meta.encoders is None:
-            attr_meta.encoders = {}
-        if attr_meta.decoders is None:
-            attr_meta.decoders = {}
-        if attr_meta.generators is None:
-            attr_meta.generators = {}
+        if attr_meta.pk_regex is None and attr_meta.table:
+            attr_meta.pk_regex = make_pk_regex(attr_meta.table.__table__.primary_key.columns.values())
+            attr_meta.pk_spec = URLSpec(attr_meta.pk_regex[1], None) if attr_meta.pk_regex[1] else None
+        attr_meta.allowed = attr_meta.allowed or ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
+        attr_meta.encoders = attr_meta.encoders or {}
+        attr_meta.decoders = attr_meta.decoders or {}
+        attr_meta.generators = attr_meta.generators or {}
         attr_meta.routes = list()
         for k, v in attrs.items():  # collecting decorated functions.
             if not hasattr(v, '__call__'):
@@ -302,7 +314,7 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::uri> %s', self.request.uri)
         self.logger.info('Request::query> %s', self.request.query)
         self.logger.info('Request::arguments> %s', self.request.arguments)
-        self.logger.info('Request::body> %s', self.request.body)
+        self._read()
         self.write('%s :> %s' % (self._meta.table, 'GET'))
 
     def post(self, *args, **kwargs):
@@ -313,7 +325,6 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::uri> %s', self.request.uri)
         self.logger.info('Request::query> %s', self.request.query)
         self.logger.info('Request::arguments> %s', self.request.arguments)
-        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'POST'))
 
     def put(self, *args, **kwargs):
@@ -324,7 +335,6 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::uri> %s', self.request.uri)
         self.logger.info('Request::query> %s', self.request.query)
         self.logger.info('Request::arguments> %s', self.request.arguments)
-        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'PUT'))
 
     def delete(self, *args, **kwargs):
@@ -335,7 +345,6 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::uri> %s', self.request.uri)
         self.logger.info('Request::query> %s', self.request.query)
         self.logger.info('Request::arguments> %s', self.request.arguments)
-        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'DELETE'))
 
     def head(self, *args, **kwargs):
@@ -346,7 +355,6 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::uri> %s', self.request.uri)
         self.logger.info('Request::query> %s', self.request.query)
         self.logger.info('Request::arguments> %s', self.request.arguments)
-        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'HEAD'))
 
     def options(self, *args, **kwargs):
@@ -357,7 +365,6 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::uri> %s', self.request.uri)
         self.logger.info('Request::query> %s', self.request.query)
         self.logger.info('Request::arguments> %s', self.request.arguments)
-        self.logger.info('Request::body> %s', self.request.body)
         self.write('%s :> %s' % (self._meta.table, 'OPTIONS'))
 
     @classmethod
@@ -420,6 +427,13 @@ class RestletHandler(RequestHandler):
             self._handle_request_exception(e)
 
     def _execute_method(self):
+        def unquote(s):
+        # None-safe wrapper around url_unescape to handle
+        # unmatched optional groups correctly
+            if s is None:
+                return s
+            return escape.url_unescape(s, encoding=None,
+                                       plus=False)
         if not self._finished:
             if self._meta.routes and self.path_kwargs.get('relpath', None):
                 method = None
@@ -430,13 +444,6 @@ class RestletHandler(RequestHandler):
                             raise exceptions.MethodNotAllowed()
                         method = spec.request_handler
                         if spec.regex.groups:
-                            # None-safe wrapper around url_unescape to handle
-                            # unmatched optional groups correctly
-                            def unquote(s):
-                                if s is None:
-                                    return s
-                                return escape.url_unescape(s, encoding=None,
-                                                           plus=False)
                             if spec.regex.groupindex:
                                 self.path_kwargs = dict(
                                     (str(k), unquote(v))
@@ -446,10 +453,60 @@ class RestletHandler(RequestHandler):
                         break
                 ### else:
                 if not method:
-                    raise exceptions.NotFound()
-                self._when_complete(method(self, *self.path_args, **self.path_kwargs),
-                                    self._execute_finish)
+                    match = self._meta.pk_spec.regex.match(self.path_kwargs.get('relpath')) if self._meta.pk_spec \
+                        else None
+                    if match:
+                        if spec.regex.groups:
+                            if spec.regex.groupindex:
+                                self.path_kwargs = dict(
+                                    (str(k), unquote(v))
+                                    for (k, v) in match.groupdict().items())
+                            else:
+                                self.path_args = [unquote(s) for s in match.groups()]
+                        method = getattr(self, self.request.method.lower())
+                        self._when_complete(method(*self.path_args, **self.path_kwargs),
+                                            self._execute_finish)
+                    else:
+                        raise exceptions.NotFound()
+                else:
+                    self._when_complete(method(self, *self.path_args, **self.path_kwargs),
+                                        self._execute_finish)
             else:
                 method = getattr(self, self.request.method.lower())
                 self._when_complete(method(*self.path_args, **self.path_kwargs),
                                     self._execute_finish)
+
+    def _serialize(self, inst, include_fields=None, exclude_fields=None, extend_fields=None, order_by=None, limit=None):
+        """_serialize generate a dictionary from a queryset instance `inst` according to the meta controled by handler
+        and the following arguments:
+        `include_fields`: a list of field names want to included in output;
+        `exclude_fields`: a list of field names will not included in output;
+        `extend_fields`: a list of foreignkey field names and m2m or related attributes with other relationships;
+        `order_by`: a list of field names for ordering the output;
+        `limit`: an integer to limit the number of records to output, 50 by default;
+        Return dictionary will like:
+        {
+            'ref': '$(HTTP_REQUEST_URI)',
+            '__total': $(NUM_OF_MACHED_RECORDS),
+            '__count': $(NUM_OF_RETURNED_RECORDS),
+            '__limit': $(LIMIT_NUM),
+            '__begin': $(OFFSET),
+            '__model': '$(NAME_OF_MODEL)',
+            'objects': [$(LIST_OF_RECORDS)], ## For multiple records mode
+            'object': {$(RECORD)}, ## For one record mode
+        }
+        """
+        result = {}
+        meta = self._meta
+        include_fields = []
+        exclude_fields = []
+        extend_fields = []
+        order_by = []
+        limit = 50 if limit is None else limit
+
+        return result
+
+    def _read(self, pk=None, query=None, include_fields=None, exclude_fields=None,
+              extend_fields=None, order_by=None, limit=None):
+        inst = self.db_session.query(self._meta.table).all()
+        self.logger.debug('Inst: %s', type(inst))
