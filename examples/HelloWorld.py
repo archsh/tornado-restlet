@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-from restlet.application import Application
+from restlet.application import RestletApplication
 from restlet.handler import RestletHandler, encoder, decoder, route
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Sequence
+from sqlalchemy import Column, Integer, String, Sequence, MetaData
 import logging
-
+import sqlalchemy.orm.query.Query
 Base = declarative_base()
 
 
@@ -49,7 +49,15 @@ class UserHandler(RestletHandler):
 if __name__ == "__main__":
     import tornado.ioloop
     logging.basicConfig(level=logging.DEBUG)
-    application = Application([UserHandler.route_to('/users'), ],
-                              dburi='sqlite:///:memory:', loglevel='DEBUG')
+    application = RestletApplication([UserHandler.route_to('/users'), ],
+                                     dburi='sqlite:///:memory:', loglevel='DEBUG')
+    Base.metadata.create_all(application.db_engine)
+    session = application.new_db_session()
+    session.add(User(name='u1', fullname='User 1', password='password 1', key='key 1'))
+    session.add(User(name='u2', fullname='User 2', password='password 2', key='key 2'))
+    session.add(User(name='u3', fullname='User 3', password='password 3', key='key 3'))
+    session.add(User(name='u4', fullname='User 4', password='password 4', key='key 4'))
+    session.commit()
+
     application.listen(8888)
     tornado.ioloop.IOLoop.instance().start()
