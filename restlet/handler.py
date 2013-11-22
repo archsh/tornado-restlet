@@ -1,7 +1,9 @@
 import re
 import sys
+import types
 import logging
 from sqlalchemy import Column
+from sqlalchemy.orm.query import Query
 from tornado.web import RequestHandler, HTTPError
 from tornado import escape
 from tornado import httputil
@@ -9,6 +11,7 @@ from tornado.log import access_log, app_log, gen_log
 #from tornado.escape import utf8, _unicode
 #from tornado.util import bytes_type, unicode_type
 from . import exceptions
+from .serializers import serialize
 try:
     import simplejson as json
 except:
@@ -108,9 +111,24 @@ def route(pattern, *methods, **kwargs):
 
 def request_handler(view):
     def f(self, *args, **kwargs):
+        self.logger.debug('Headers: %s', self.request.headers)
         result = view(self, *args, **kwargs)
-        if result:
-            pass
+
+        if isinstance(result, (dict, list, tuple, types.GeneratorType)):
+            if isinstance(result, types.GeneratorType):
+                result = list(result)
+            if 'yaml' in self.request.query:
+                self.set_header('Content-Type', 'application/x-yaml')
+                result = yaml.dump(result)
+            else:
+                self.set_header('Content-Type', 'application/json')
+                result = json.dumps(result)
+            self.write(result)
+        elif isinstance(result, (str, unicode, bytearray)):
+            self.write(result)
+        else:
+            self.logger.info('Result type is: %s', type(result))
+            raise exceptions.RestletError()
 
     return f
 
@@ -316,19 +334,19 @@ class RestletHandler(RequestHandler):
     def log(self, level, msg, *args, **kwargs):
         self.logger.log(level, msg, *args, **kwargs)
 
+    @request_handler
     def get(self, *args, **kwargs):
-        self.logger.info('[%s] GET>', self.__class__.__name__)
+        self.logger.info('[%s] GET> args(%s), kwargs(%s)', self.__class__.__name__, args, kwargs)
         self.logger.info('Request::headers> %s', self.request.headers)
         self.logger.info('Request::path> %s', self.request.path)
         self.logger.info('Request::uri> %s', self.request.uri)
         self.logger.info('Request::query> %s', self.request.query)
         self.logger.info('Request::arguments> %s', self.request.arguments)
-        self._read()
-        self.write('%s :> %s' % (self._meta.table, 'GET'))
+        return self._read(pk=kwargs.get(self._meta.pk_regex[0], None))
 
+    @request_handler
     def post(self, *args, **kwargs):
         self.logger.info('[%s] POST>', self.__class__.__name__)
-        self.logger.info('[%s] GET>', self.__class__.__name__)
         self.logger.info('Request::headers> %s', self.request.headers)
         self.logger.info('Request::path> %s', self.request.path)
         self.logger.info('Request::uri> %s', self.request.uri)
@@ -336,9 +354,9 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'POST'))
 
+    @request_handler
     def put(self, *args, **kwargs):
         self.logger.info('[%s] PUT>', self.__class__.__name__)
-        self.logger.info('[%s] GET>', self.__class__.__name__)
         self.logger.info('Request::headers> %s', self.request.headers)
         self.logger.info('Request::path> %s', self.request.path)
         self.logger.info('Request::uri> %s', self.request.uri)
@@ -346,9 +364,9 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'PUT'))
 
+    @request_handler
     def delete(self, *args, **kwargs):
         self.logger.info('[%s] DELETE>', self.__class__.__name__)
-        self.logger.info('[%s] GET>', self.__class__.__name__)
         self.logger.info('Request::headers> %s', self.request.headers)
         self.logger.info('Request::path> %s', self.request.path)
         self.logger.info('Request::uri> %s', self.request.uri)
@@ -356,9 +374,9 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'DELETE'))
 
+    @request_handler
     def head(self, *args, **kwargs):
         self.logger.info('[%s] HEAD>', self.__class__.__name__)
-        self.logger.info('[%s] GET>', self.__class__.__name__)
         self.logger.info('Request::headers> %s', self.request.headers)
         self.logger.info('Request::path> %s', self.request.path)
         self.logger.info('Request::uri> %s', self.request.uri)
@@ -366,15 +384,12 @@ class RestletHandler(RequestHandler):
         self.logger.info('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'HEAD'))
 
+    @request_handler
     def options(self, *args, **kwargs):
-        self.logger.info('[%s] OPTIONS>', self.__class__.__name__)
-        self.logger.info('[%s] GET>', self.__class__.__name__)
-        self.logger.info('Request::headers> %s', self.request.headers)
-        self.logger.info('Request::path> %s', self.request.path)
-        self.logger.info('Request::uri> %s', self.request.uri)
-        self.logger.info('Request::query> %s', self.request.query)
-        self.logger.info('Request::arguments> %s', self.request.arguments)
-        self.write('%s :> %s' % (self._meta.table, 'OPTIONS'))
+        self.set_header('Allowed', ','.join(self._meta.allowed))
+        return {'Allowed': self._meta.allowed,
+                'Model': self._meta.table.__name__,
+                'Fields': self._meta.table.__table__.c.keys()}
 
     @classmethod
     def route_to(cls, path=None):
@@ -505,20 +520,42 @@ class RestletHandler(RequestHandler):
             'object': {$(RECORD)}, ## For one record mode
         }
         """
-        result = {}
+        result = {
+            'ref': self.request.uri,
+            '__model': self._meta.table.__name__,
+        }
+
         meta = self._meta
         include_fields = []
         exclude_fields = []
         extend_fields = []
         order_by = []
         limit = 50 if limit is None else limit
-
+        if isinstance(inst, Query):
+            result.update({
+                '__total': inst.count(),
+                '__count': inst.count(),
+                '__limit': limit or 50,
+                '__begin': 0,
+            })
+            result['objects'] = list(inst.values(*[getattr(self._meta.table, x) \
+                                              for x in self._meta.table.__table__.c.keys()]))
+        else:
+            result['object'] = dict([(k, getattr(inst, k)) for k in self._meta.table.__table__.c.keys()])
         return result
 
     def _read(self, pk=None, query=None, include_fields=None, exclude_fields=None,
               extend_fields=None, order_by=None, limit=None):
-        inst = self.db_session.query(self._meta.table).all()
+        if pk:
+            try:
+                inst = self.db_session.query(self._meta.table).filter_by(**{self._meta.pk_regex[0]: pk}).one()
+            except Exception, e:
+                #self.logger.exception(e)
+                raise exceptions.NotFound()
+        else:
+            inst = self.db_session.query(self._meta.table)
         self.logger.debug('Inst: %s', type(inst))
+        return self._serialize(inst)
 
     def _create(self, arguments):
         pass
