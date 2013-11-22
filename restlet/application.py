@@ -14,7 +14,7 @@ class RestletApplication(Application):
         if settings.get('dburi'):
             from sqlalchemy.orm import sessionmaker
             from sqlalchemy import create_engine
-            self.db_engine = create_engine(settings.get('dburi'), echo=False)
+            self.db_engine = create_engine(settings.get('dburi'), echo=settings.get('dblogging', False))
             self.session_maker = sessionmaker(bind=self.db_engine)
         else:
             self.db_engine = None
