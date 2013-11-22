@@ -1,11 +1,21 @@
 # -*- coding: utf-8 -*-
+import logging
 from restlet.application import RestletApplication
 from restlet.handler import RestletHandler, encoder, decoder, route
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Sequence, MetaData
-import logging
-import sqlalchemy.orm.query.Query
+from sqlalchemy import Column, Integer, String, Sequence, MetaData, ForeignKey
+from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm.query import Query
+
+
 Base = declarative_base()
+
+
+class Group(Base):
+    __tablename__ = 'groups'
+    id = Column(Integer, Sequence('group_id_seq'), primary_key=True)
+    name = Column(String(50))
+    users = relationship('User', backref="group")
 
 
 class User(Base):
@@ -15,6 +25,7 @@ class User(Base):
     fullname = Column(String(50))
     password = Column(String(40))
     key = Column(String(32))
+    group_id = Column(Integer, ForeignKey('groups.id'))
 
 
 class UserHandler(RestletHandler):
@@ -53,10 +64,12 @@ if __name__ == "__main__":
                                      dburi='sqlite:///:memory:', loglevel='DEBUG')
     Base.metadata.create_all(application.db_engine)
     session = application.new_db_session()
-    session.add(User(name='u1', fullname='User 1', password='password 1', key='key 1'))
-    session.add(User(name='u2', fullname='User 2', password='password 2', key='key 2'))
-    session.add(User(name='u3', fullname='User 3', password='password 3', key='key 3'))
-    session.add(User(name='u4', fullname='User 4', password='password 4', key='key 4'))
+    group = Group(name='Group 1')
+    session.add(group)
+    session.add(User(name='u1', fullname='User 1', password='password 1', key='key 1', group=group))
+    session.add(User(name='u2', fullname='User 2', password='password 2', key='key 2', group=group))
+    session.add(User(name='u3', fullname='User 3', password='password 3', key='key 3', group=group))
+    session.add(User(name='u4', fullname='User 4', password='password 4', key='key 4', group=group))
     session.commit()
 
     application.listen(8888)
