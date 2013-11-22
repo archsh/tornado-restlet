@@ -106,6 +106,15 @@ def route(pattern, *methods, **kwargs):
     return wrap
 
 
+def request_handler(view):
+    def f(self, *args, **kwargs):
+        result = view(self, *args, **kwargs)
+        if result:
+            pass
+
+    return f
+
+
 class URLSpec(object):
     """Specifies mappings between URLs and handlers."""
     def __init__(self, pattern, request_handler, methods=None, kwargs=None):
@@ -510,3 +519,12 @@ class RestletHandler(RequestHandler):
               extend_fields=None, order_by=None, limit=None):
         inst = self.db_session.query(self._meta.table).all()
         self.logger.debug('Inst: %s', type(inst))
+
+    def _create(self, arguments):
+        pass
+
+    def _update(self, inst, arguments, query=None):
+        pass
+
+    def _delete(self, query=None):
+        pass
