@@ -21,11 +21,11 @@ class Group(Base):
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, Sequence('user_id_seq'), primary_key=True)
-    name = Column(String(50))
-    fullname = Column(String(50))
-    password = Column(String(40))
-    key = Column(String(32))
-    group_id = Column(Integer, ForeignKey('groups.id'))
+    name = Column(String(50), nullable=False, unique=True)
+    fullname = Column(String(50), nullable=True)
+    password = Column(String(40), nullable=True)
+    key = Column(String(32), nullable=True, doc='Another key')
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
 
 
 class UserHandler(RestletHandler):
