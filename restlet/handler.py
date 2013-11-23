@@ -237,11 +237,11 @@ def make_pk_regex(pk_clmns):
         elif pk_clmns.type.__class__.__name__ in ('CHAR', 'VARCHAR', 'NCHAR', 'NVARCHAR', 'String', 'Unicode'):
             return pk_clmns.name, r'(?P<%s>[0-9A-Za-z_-]+)' % pk_clmns.name
         else:
-            return None, None
+            return None  # , None
     elif isinstance(pk_clmns, (list, tuple)):
         return make_pk_regex(pk_clmns[0])
     else:
-        return None, None
+        return None  # , None
 
 
 class HandlerBase(type):
@@ -254,13 +254,13 @@ class HandlerBase(type):
         super_new = super(HandlerBase, cls).__new__
         attr_meta = attrs.pop('Meta', None)
         attr_meta = attr_meta or Meta()
-        for k in ('table', 'pk_regex', 'allowed', 'denied', 'changable', 'readonly', 'invisible', 'order_by',
+        for k in ('table', 'pk_regex', 'pk_spec', 'allowed', 'denied', 'changable', 'readonly', 'invisible', 'order_by',
                   'validators', 'encoders', 'encoders', 'decoders', 'generators', 'extensible', 'routes'):
             if not hasattr(attr_meta, k):
                 setattr(attr_meta, k, None)
         if attr_meta.pk_regex is None and attr_meta.table:
             attr_meta.pk_regex = make_pk_regex(attr_meta.table.__table__.primary_key.columns.values())
-            attr_meta.pk_spec = URLSpec(attr_meta.pk_regex[1], None) if attr_meta.pk_regex[1] else None
+        attr_meta.pk_spec = URLSpec(attr_meta.pk_regex[1], None) if attr_meta.pk_regex else None
         attr_meta.allowed = attr_meta.allowed or ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
         attr_meta.validators = attr_meta.validators or {}
         attr_meta.encoders = attr_meta.encoders or {}
