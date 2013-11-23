@@ -44,6 +44,28 @@ def encoder(*fields):
     return wrap
 
 
+def validator(*fields):
+    """Decorator for Handler function which will register the decorated function as the validator of field(s).
+    eg:
+    class UserHandler(RestletHandler):
+        ...
+        @validator('name'):
+        def name_validate(self, name, record=None):
+            if record and name != record.name:
+                raise Exception('Can not change name.')
+
+    """
+    assert fields
+
+    def wrap(f):
+        if hasattr(f, '__validates__'):
+            f.__validates__.extends(fields)
+        else:
+            f.__validates__ = fields
+        return f
+    return wrap
+
+
 def decoder(*fields):
     """Decorator for Handler function which will register the decorated function as the decoder of field(s).
     eg:
@@ -233,13 +255,14 @@ class HandlerBase(type):
         attr_meta = attrs.pop('Meta', None)
         attr_meta = attr_meta or Meta()
         for k in ('table', 'pk_regex', 'allowed', 'denied', 'changable', 'readonly', 'invisible', 'order_by',
-                  'encoders', 'encoders', 'decoders', 'generators', 'extensible', 'routes'):
+                  'validators', 'encoders', 'encoders', 'decoders', 'generators', 'extensible', 'routes'):
             if not hasattr(attr_meta, k):
                 setattr(attr_meta, k, None)
         if attr_meta.pk_regex is None and attr_meta.table:
             attr_meta.pk_regex = make_pk_regex(attr_meta.table.__table__.primary_key.columns.values())
             attr_meta.pk_spec = URLSpec(attr_meta.pk_regex[1], None) if attr_meta.pk_regex[1] else None
         attr_meta.allowed = attr_meta.allowed or ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
+        attr_meta.validators = attr_meta.validators or {}
         attr_meta.encoders = attr_meta.encoders or {}
         attr_meta.decoders = attr_meta.decoders or {}
         attr_meta.generators = attr_meta.generators or {}
@@ -247,7 +270,10 @@ class HandlerBase(type):
         for k, v in attrs.items():  # collecting decorated functions.
             if not hasattr(v, '__call__'):
                 continue
-            if hasattr(v, '__encodes__'):
+            if hasattr(v, '__validates__'):
+                for f in v.__validates__:
+                    attr_meta.validators[f] = v
+            elif hasattr(v, '__encodes__'):
                 for f in v.__encodes__:
                     attr_meta.encoders[f] = v
             elif hasattr(v, '__decodes__'):
@@ -258,6 +284,9 @@ class HandlerBase(type):
                     attr_meta.generators[f] = v
             elif hasattr(v, '__route__'):
                 attr_meta.routes.extend([URLSpec(x[0], v, x[1], x[2]) for x in v.__route__])
+        for bcls in bases:  # TODO: To be improved for instance if there're multiple bases
+            if hasattr(bcls, '_meta') and hasattr(bcls._meta, 'routes') and bcls._meta.routes:
+                attr_meta.routes.extend(bcls._meta.routes)
         new_class = super_new(cls, name, bases, attrs)
         new_class.add_to_class('_meta', attr_meta)
         if attr_meta.table is not None:
@@ -390,6 +419,24 @@ class RestletHandler(RequestHandler):
         return {'Allowed': self._meta.allowed,
                 'Model': self._meta.table.__name__,
                 'Fields': self._meta.table.__table__.c.keys()}
+
+    @route('_schema', 'GET')
+    @request_handler
+    def table_schema(self, *args, **kwargs):
+        table = self._meta.table
+        fields = dict([(c.name, {'type': '%s' % c.type, 'default': '%s' % c.default if c.default else c.default,
+                            'nullable': c.nullable, 'unique': c.unique,
+                            'doc': c.doc, 'primary_key': c.primary_key})
+                       for c in table.__table__.columns.values()])
+        relationships = dict([(n, {'target': r.mapper.class_.__name__,
+                                   'direction': r.direction.name,
+                                   'field': ['%s.%s' % (c.table, c.name) for c in r._calculated_foreign_keys]})
+                              for n, r in table.__mapper__.relationships.items()])
+        return {
+            'table': table.__name__,
+            'fields': fields,
+            'relationships': relationships,
+        }
 
     @classmethod
     def route_to(cls, path=None):
