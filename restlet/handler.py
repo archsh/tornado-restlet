@@ -461,12 +461,12 @@ class RestletHandler(RequestHandler):
             setattr(self, '_db_session_', sess)
             return self._db_session_
 
-    def new_db_session(self):
+    def new_db_session(self, *args, **kwargs):
         """new_db_session will create a new session of SQLAlchemy.
         you can use this method to get a new session if you don't want to use a shared session from property db_session.
         """
         if hasattr(self.application, 'new_db_session') and hasattr(self.application.new_db_session, '__call__'):
-            return self.application.new_db_session()
+            return self.application.new_db_session(*args, **kwargs)
         else:
             return None
 
