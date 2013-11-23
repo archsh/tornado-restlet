@@ -517,9 +517,11 @@ class RestletHandler(RequestHandler):
         if not self._finished:
             if self._meta.routes and self.path_kwargs.get('relpath', None):
                 method = None
+                self.logger.debug('Matching routes ...')
                 for spec in self._meta.routes:
                     match = spec.regex.match(self.path_kwargs.get('relpath'))
                     if match:
+                        self.logger.debug('Matched route %s ...', spec)
                         if spec.methods and self.request.method not in spec.methods:
                             raise exceptions.MethodNotAllowed()
                         method = spec.request_handler
@@ -533,8 +535,9 @@ class RestletHandler(RequestHandler):
                         break
                 ### else:
                 if not method:
-                    match = self._meta.pk_spec.regex.match(self.path_kwargs.get('relpath')) if self._meta.pk_spec \
-                        else None
+                    self.logger.debug('Matching pk_spec ...')
+                    spec = self._meta.pk_spec
+                    match = spec.regex.match(self.path_kwargs.get('relpath')) if spec else None
                     if match:
                         if spec.regex.groups:
                             if spec.regex.groupindex:
@@ -552,6 +555,7 @@ class RestletHandler(RequestHandler):
                     self._when_complete(method(self, *self.path_args, **self.path_kwargs),
                                         self._execute_finish)
             else:
+                self.logger.debug('Go upper ...')
                 method = getattr(self, self.request.method.lower())
                 self._when_complete(method(*self.path_args, **self.path_kwargs),
                                     self._execute_finish)
@@ -600,8 +604,17 @@ class RestletHandler(RequestHandler):
             result['object'] = dict([(k, getattr(inst, k)) for k in self._meta.table.__table__.c.keys()])
         return result
 
-    def _read(self, pk=None, query=None, include_fields=None, exclude_fields=None,
-              extend_fields=None, order_by=None, limit=None):
+    def _read(self, pk=None, query=None,
+              include_fields=None, exclude_fields=None, extend_fields=None, order_by=None, begin=None, limit=None):
+        self.logger.debug('%s:> _read', self.__class__.__name__)
+        self.logger.debug('pk: %s', pk)
+        self.logger.debug('query: %s', query)
+        self.logger.debug('include_fields: %s', include_fields)
+        self.logger.debug('exclude_fields: %s', exclude_fields)
+        self.logger.debug('extend_fields: %s', extend_fields)
+        self.logger.debug('order_by: %s', order_by)
+        self.logger.debug('begin: %s', begin)
+        self.logger.debug('limit: %s', limit)
         if pk:
             try:
                 inst = self.db_session.query(self._meta.table).filter_by(**{self._meta.pk_regex[0]: pk}).one()
@@ -613,11 +626,25 @@ class RestletHandler(RequestHandler):
         self.logger.debug('Inst: %s', type(inst))
         return self._serialize(inst)
 
-    def _create(self, arguments):
-        pass
+    def _create(self, arguments,
+                include_fields=None, exclude_fields=None, extend_fields=None):
+        self.logger.debug('%s:> _create', self.__class__.__name__)
+        self.logger.debug('arguments: %s', arguments)
+        self.logger.debug('include_fields: %s', include_fields)
+        self.logger.debug('exclude_fields: %s', exclude_fields)
+        self.logger.debug('extend_fields: %s', extend_fields)
 
-    def _update(self, inst, arguments, query=None):
-        pass
+    def _update(self, arguments, pk=None, query=None,
+                include_fields=None, exclude_fields=None, extend_fields=None):
+        self.logger.debug('%s:> _update', self.__class__.__name__)
+        self.logger.debug('pk: %s', pk)
+        self.logger.debug('query: %s', query)
+        self.logger.debug('include_fields: %s', include_fields)
+        self.logger.debug('exclude_fields: %s', exclude_fields)
+        self.logger.debug('extend_fields: %s', extend_fields)
+        self.logger.debug('arguments: %s', arguments)
 
-    def _delete(self, query=None):
-        pass
+    def _delete(self, pk=None, query=None):
+        self.logger.debug('%s:> _delete', self.__class__.__name__)
+        self.logger.debug('pk: %s', pk)
+        self.logger.debug('query: %s', query)
