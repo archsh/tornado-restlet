@@ -34,6 +34,7 @@ class UserHandler(RestletHandler):
     def __init__(self, *args, **kwargs):
         super(UserHandler, self).__init__(*args, **kwargs)
         self.t1 = datetime.datetime.now()
+        self.t2 = None
 
     def on_finish(self):
         self.t2 = datetime.datetime.now()
@@ -69,7 +70,7 @@ if __name__ == "__main__":
     import tornado.ioloop
     logging.basicConfig(level=logging.DEBUG)
     application = RestletApplication([UserHandler.route_to('/users'), ],
-                                     dburi='sqlite:///:memory:', loglevel='INFO', debug=True)
+                                     dburi='sqlite:///:memory:', loglevel='DEBUG', debug=True)
     Base.metadata.create_all(application.db_engine)
     session = application.new_db_session()
     group = Group(name='Group 1')

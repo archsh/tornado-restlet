@@ -333,7 +333,6 @@ class HandlerBase(type):
         new_class.add_to_class('_meta', attr_meta)
         if attr_meta.table is not None:
             setattr(attr_meta.table, '__handler__', new_class)
-        print name, ':', attr_meta.__dict__
         return new_class
 
     def add_to_class(cls, name, value):
