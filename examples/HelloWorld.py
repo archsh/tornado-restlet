@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import datetime
 from restlet.application import RestletApplication
 from restlet.handler import RestletHandler, encoder, decoder, route
 from sqlalchemy.ext.declarative import declarative_base
@@ -30,6 +31,13 @@ class User(Base):
 
 class UserHandler(RestletHandler):
     """UserHandler to process User table."""
+    def __init__(self, *args, **kwargs):
+        super(UserHandler, self).__init__(*args, **kwargs)
+        self.t1 = datetime.datetime.now()
+
+    def on_finish(self):
+        self.t2 = datetime.datetime.now()
+        self.logger.info('Total Spent: %s', self.t2 - self.t1)
 
     class Meta:
         testing = True
@@ -61,7 +69,7 @@ if __name__ == "__main__":
     import tornado.ioloop
     logging.basicConfig(level=logging.DEBUG)
     application = RestletApplication([UserHandler.route_to('/users'), ],
-                                     dburi='sqlite:///:memory:', loglevel='DEBUG')
+                                     dburi='sqlite:///:memory:', loglevel='INFO', debug=True)
     Base.metadata.create_all(application.db_engine)
     session = application.new_db_session()
     group = Group(name='Group 1')
