@@ -26,7 +26,7 @@ class User(Base):
     fullname = Column(String(50), nullable=True)
     password = Column(String(40), nullable=True)
     key = Column(String(32), nullable=True, doc='Another key')
-    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True, key='group')
 
 
 class UserHandler(RestletHandler):
