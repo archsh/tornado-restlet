@@ -60,7 +60,7 @@ __FIELD_PROCESSORS__ = {
 def simple_field_processor(column):
     """simple_field_processor create a new function converts post values for SQLAlchemy columns.
     """
-    assert column and isinstance(column, Column)
+    assert isinstance(column, Column)
     _accept_types = None
     _support_types = None
     _converter = None
