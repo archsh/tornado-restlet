@@ -373,7 +373,7 @@ class RestletHandler(RequestHandler):
         super(RestletHandler, self).__init__(*args, **kwargs)
         self.logger = self.application.logger if hasattr(self.application, 'logger') \
             else logging.getLogger('tornado.restlet')
-        self.logger.info('Request: %s', dir(self.request))
+        self.logger.debug('%s [%s] > %s', self.__class__.__name__, self.request.method, self.request.uri)
         ## Here we re-construct the request.query and request.arguments
         ## the request.query is not a string of url query any more, it's converted to a disctionary;
         ## and request.arguments will only take the request.body parsed values, not including values in query;
@@ -407,52 +407,52 @@ class RestletHandler(RequestHandler):
 
     @request_handler
     def get(self, *args, **kwargs):
-        self.logger.info('[%s] GET> args(%s), kwargs(%s)', self.__class__.__name__, args, kwargs)
-        self.logger.info('Request::headers> %s', self.request.headers)
-        self.logger.info('Request::path> %s', self.request.path)
-        self.logger.info('Request::uri> %s', self.request.uri)
-        self.logger.info('Request::query> %s', self.request.query)
-        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.debug('[%s] GET> args(%s), kwargs(%s)', self.__class__.__name__, args, kwargs)
+        self.logger.debug('Request::headers> %s', self.request.headers)
+        self.logger.debug('Request::path> %s', self.request.path)
+        self.logger.debug('Request::uri> %s', self.request.uri)
+        self.logger.debug('Request::query> %s', self.request.query)
+        self.logger.debug('Request::arguments> %s', self.request.arguments)
         return self._read(pk=kwargs.get(self._meta.pk_regex[0], None))
 
     @request_handler
     def post(self, *args, **kwargs):
-        self.logger.info('[%s] POST>', self.__class__.__name__)
-        self.logger.info('Request::headers> %s', self.request.headers)
-        self.logger.info('Request::path> %s', self.request.path)
-        self.logger.info('Request::uri> %s', self.request.uri)
-        self.logger.info('Request::query> %s', self.request.query)
-        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.debug('[%s] POST>', self.__class__.__name__)
+        self.logger.debug('Request::headers> %s', self.request.headers)
+        self.logger.debug('Request::path> %s', self.request.path)
+        self.logger.debug('Request::uri> %s', self.request.uri)
+        self.logger.debug('Request::query> %s', self.request.query)
+        self.logger.debug('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'POST'))
 
     @request_handler
     def put(self, *args, **kwargs):
-        self.logger.info('[%s] PUT>', self.__class__.__name__)
-        self.logger.info('Request::headers> %s', self.request.headers)
-        self.logger.info('Request::path> %s', self.request.path)
-        self.logger.info('Request::uri> %s', self.request.uri)
-        self.logger.info('Request::query> %s', self.request.query)
-        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.debug('[%s] PUT>', self.__class__.__name__)
+        self.logger.debug('Request::headers> %s', self.request.headers)
+        self.logger.debug('Request::path> %s', self.request.path)
+        self.logger.debug('Request::uri> %s', self.request.uri)
+        self.logger.debug('Request::query> %s', self.request.query)
+        self.logger.debug('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'PUT'))
 
     @request_handler
     def delete(self, *args, **kwargs):
-        self.logger.info('[%s] DELETE>', self.__class__.__name__)
-        self.logger.info('Request::headers> %s', self.request.headers)
-        self.logger.info('Request::path> %s', self.request.path)
-        self.logger.info('Request::uri> %s', self.request.uri)
-        self.logger.info('Request::query> %s', self.request.query)
-        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.debug('[%s] DELETE>', self.__class__.__name__)
+        self.logger.debug('Request::headers> %s', self.request.headers)
+        self.logger.debug('Request::path> %s', self.request.path)
+        self.logger.debug('Request::uri> %s', self.request.uri)
+        self.logger.debug('Request::query> %s', self.request.query)
+        self.logger.debug('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'DELETE'))
 
     @request_handler
     def head(self, *args, **kwargs):
-        self.logger.info('[%s] HEAD>', self.__class__.__name__)
-        self.logger.info('Request::headers> %s', self.request.headers)
-        self.logger.info('Request::path> %s', self.request.path)
-        self.logger.info('Request::uri> %s', self.request.uri)
-        self.logger.info('Request::query> %s', self.request.query)
-        self.logger.info('Request::arguments> %s', self.request.arguments)
+        self.logger.debug('[%s] HEAD>', self.__class__.__name__)
+        self.logger.debug('Request::headers> %s', self.request.headers)
+        self.logger.debug('Request::path> %s', self.request.path)
+        self.logger.debug('Request::uri> %s', self.request.uri)
+        self.logger.debug('Request::query> %s', self.request.query)
+        self.logger.debug('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'HEAD'))
 
     @request_handler
