@@ -2,8 +2,10 @@ import re
 import sys
 import types
 import logging
-from sqlalchemy import Column
+import traceback
 from sqlalchemy.orm.query import Query
+from sqlalchemy import Column, Integer, SmallInteger, BigInteger
+from sqlalchemy import String, Unicode
 from tornado.web import RequestHandler, HTTPError
 from tornado import escape
 from tornado import httputil
@@ -11,7 +13,7 @@ from tornado.log import access_log, app_log, gen_log
 #from tornado.escape import utf8, _unicode
 #from tornado.util import bytes_type, unicode_type
 from . import exceptions
-from .serializers import serialize
+from .helpers import simple_field_processor
 try:
     import simplejson as json
 except:
@@ -132,6 +134,9 @@ def route(pattern, *methods, **kwargs):
 
 
 def request_handler(view):
+    """Decorator request_handler decorates a method of RestletHandler.
+    Decorator will dumps the return value of method into JSON or YAML according to the request.
+    """
     def f(self, *args, **kwargs):
         self.logger.debug('Headers: %s', self.request.headers)
         result = view(self, *args, **kwargs)
@@ -194,7 +199,6 @@ class URLSpec(object):
 
     def _find_groups(self):
         """Returns a tuple (reverse string, group count) for a url.
-
         For example: Given the url pattern /([0-9]{4})/([a-z-]+)/, this method
         would return ('/%s/%s/', 2).
         """
@@ -222,6 +226,9 @@ class URLSpec(object):
 
 
 def revert_list_of_qs(qs):
+    """revert_list_of_qs, process the result of escape.parse_qs_bytes which convert the item values if the type is list
+    and has only one element to it's first element. Otherwize, keep the original value.
+    """
     if not isinstance(qs, dict):
         return
     for k, v in qs.items():
@@ -230,11 +237,14 @@ def revert_list_of_qs(qs):
 
 
 def make_pk_regex(pk_clmns):
+    """make_pk_regex generate a tuple of (fieldname, regex_pattern) according to the giving primary key fields of table.
+    Only the integer and string field are supported, return None if no primary key field of it's not type of integer or
+    string. Function only takes the first pk if there're more than one primary key fields.
+    """
     if isinstance(pk_clmns, Column):
-        if pk_clmns.type.__class__.__name__ in ('INT', 'BIGINT', 'SMALLINT', 'INTEGER', 'Integer',
-                                                'SmallInteger', 'BigInteger',):
+        if isinstance(pk_clmns.type, (Integer, BigInteger, SmallInteger)):
             return pk_clmns.name, r'(?P<%s>[0-9]+)' % pk_clmns.name
-        elif pk_clmns.type.__class__.__name__ in ('CHAR', 'VARCHAR', 'NCHAR', 'NVARCHAR', 'String', 'Unicode'):
+        elif isinstance(pk_clmns.type, (String, Unicode)):
             return pk_clmns.name, r'(?P<%s>[0-9A-Za-z_-]+)' % pk_clmns.name
         else:
             return None  # , None
@@ -242,6 +252,30 @@ def make_pk_regex(pk_clmns):
         return make_pk_regex(pk_clmns[0])
     else:
         return None  # , None
+
+
+def query_reparse(query):
+    """query_reparse: reparse the query.
+    Returns controls dictionary and re-constructed query dictionary.
+    """
+    if not query or not isinstance(query, dict):
+        return None
+    new_query = {'__default': {}}
+    controls = {
+        'include_fields': query.pop('__include_fields', None),
+        'exclude_fields': query.pop('__exclude_fields', None),
+        'extend_fields': query.pop('__extend_fields', None),
+        'begin': query.pop('__begin', 0),
+        'limit': query.pop('__limit', None),
+        'order_by': query.pop('__order_by', None)
+    }
+    for k, v in query.items():
+        ks = k.split('|')
+        if len(ks) == 1:
+            new_query['__default'][k] = v
+        else:
+            new_query['_'.join(ks)] = dict(map(None, ks, v.split('|')))
+    return controls, new_query
 
 
 class HandlerBase(type):
@@ -287,6 +321,14 @@ class HandlerBase(type):
         for bcls in bases:  # TODO: To be improved for instance if there're multiple bases
             if hasattr(bcls, '_meta') and hasattr(bcls._meta, 'routes') and bcls._meta.routes:
                 attr_meta.routes.extend(bcls._meta.routes)
+        if attr_meta.table:
+            for c in attr_meta.table.__table__.c.values():
+                if c.name in attr_meta.encoders:
+                    continue
+                pf = simple_field_processor(c)
+                if pf is None:
+                    continue
+                attr_meta.encoders[c.name] = pf
         new_class = super_new(cls, name, bases, attrs)
         new_class.add_to_class('_meta', attr_meta)
         if attr_meta.table is not None:
@@ -487,6 +529,27 @@ class RestletHandler(RequestHandler):
             self.send_error(e.error, exc_info=sys.exc_info())
         else:
             self.send_error(500, exc_info=sys.exc_info())
+
+    def write_error(self, status_code, **kwargs):
+        error_body = {
+            'status': status_code,
+            'reason': self._reason,
+            'ref': self.request.uri,
+        }
+        for k in ('message', 'code', 'fields'):
+            if k in kwargs:
+                error_body[k] = kwargs.get(k)
+        if self.settings.get("debug") and "exc_info" in kwargs:
+            error_body['trace'] = '\n'.join(traceback.format_exception(*kwargs["exc_info"]))
+        if 'yaml' in self.request.query:
+            self.set_header('Content-Type', 'application/x-yaml')
+            output = yaml.dump(error_body)
+            self.logger.debug(output)
+        else:
+            self.set_header('Content-Type', 'application/json')
+            output = json.dumps(error_body)
+        self.write(output)
+        self.finish()
 
     def _execute(self, transforms, *args, **kwargs):
         """Executes this request with the given output transforms."""
