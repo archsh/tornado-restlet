@@ -17,7 +17,6 @@ setup(name='tornado-restlet',
           'tornado>=3.1.1',
           'SQLAlchemy>=0.8.2',
           'simplejson>=2.3.2',
-          'lxml',
-          'PyYAML>=3.10'
+          'PyYAML>=3.10',
       ],
       url='https://github.com/archsh/tornado-restlet')
