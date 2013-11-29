@@ -56,7 +56,7 @@ Quick Start
 Requirements
 ----------------------
 
-- Tornaro >= 3.1.1
+- Tornado >= 3.1.1
 - SQLAlchemy >= 0.8
 - Simplejson
 - PyYAML
