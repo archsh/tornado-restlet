@@ -632,7 +632,7 @@ class RestletHandler(RequestHandler):
         `limit`: an integer to limit the number of records to output, 50 by default;
         Return dictionary will like:
         {
-            'ref': '$(HTTP_REQUEST_URI)',
+            '__ref': '$(HTTP_REQUEST_URI)',
             '__total': $(NUM_OF_MACHED_RECORDS),
             '__count': $(NUM_OF_RETURNED_RECORDS),
             '__limit': $(LIMIT_NUM),
@@ -643,7 +643,7 @@ class RestletHandler(RequestHandler):
         }
         """
         result = {
-            'ref': self.request.uri,
+            '__ref': self.request.uri,
             '__model': self._meta.table.__name__,
         }
 
