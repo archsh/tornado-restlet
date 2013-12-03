@@ -254,20 +254,41 @@ def make_pk_regex(pk_clmns):
         return None  # , None
 
 
+def str2list(s):
+    if not s:
+        return None
+    if isinstance(s, (list, tuple)):
+        ss = list()
+        for x in s:
+            r = str2list(x)
+            if r:
+                ss.extend(r)
+        return ss
+    elif isinstance(s, (str, unicode)):
+        return s.split(',')
+
+
+def str2int(s):
+    if s is None:
+        return None
+    else:
+        return int(s)
+
+
 def query_reparse(query):
     """query_reparse: reparse the query.
     Returns controls dictionary and re-constructed query dictionary.
     """
     if not query or not isinstance(query, dict):
-        return None
+        return {}, {}
     new_query = {'__default': {}}
     controls = {
-        'include_fields': query.pop('__include_fields', None),
-        'exclude_fields': query.pop('__exclude_fields', None),
-        'extend_fields': query.pop('__extend_fields', None),
-        'begin': query.pop('__begin', 0),
-        'limit': query.pop('__limit', None),
-        'order_by': query.pop('__order_by', None)
+        'include_fields': str2list(query.pop('__include_fields', None)),
+        'exclude_fields': str2list(query.pop('__exclude_fields', None)),
+        'extend_fields': str2list(query.pop('__extend_fields', None)),
+        'begin': str2int(query.pop('__begin', 0)),
+        'limit': str2int(query.pop('__limit', None)),
+        'order_by': str2list(query.pop('__order_by', None))
     }
     for k, v in query.items():
         ks = k.split('|')
@@ -412,7 +433,8 @@ class RestletHandler(RequestHandler):
         self.logger.debug('Request::uri> %s', self.request.uri)
         self.logger.debug('Request::query> %s', self.request.query)
         self.logger.debug('Request::arguments> %s', self.request.arguments)
-        return self._read(pk=kwargs.get(self._meta.pk_regex[0], None))
+        controls, queries = query_reparse(self.request.query)
+        return self._read(pk=kwargs.get(self._meta.pk_regex[0], None), query=queries, **controls)
 
     @request_handler
     def post(self, *args, **kwargs):
@@ -622,7 +644,13 @@ class RestletHandler(RequestHandler):
                 self._when_complete(method(*self.path_args, **self.path_kwargs),
                                     self._execute_finish)
 
-    def _serialize(self, inst, include_fields=None, exclude_fields=None, extend_fields=None, order_by=None, limit=None):
+    def _serialize(self, inst,
+                   include_fields=None,
+                   exclude_fields=None,
+                   extend_fields=None,
+                   order_by=None,
+                   begin=None,
+                   limit=None):
         """_serialize generate a dictionary from a queryset instance `inst` according to the meta controled by handler
         and the following arguments:
         `include_fields`: a list of field names want to included in output;
@@ -648,23 +676,41 @@ class RestletHandler(RequestHandler):
         }
 
         meta = self._meta
-        include_fields = []
-        exclude_fields = []
-        extend_fields = []
-        order_by = []
-        limit = 50 if limit is None else limit
+        include_fields = list((set(include_fields or meta.table.__table__.columns.keys()) - set(exclude_fields or []))
+                              | set(meta.table.__table__.primary_key.columns.keys()))
+        if extend_fields:
+            pass
         if isinstance(inst, Query):
+            begin = begin or 0
+            limit = 50 if limit is None else limit
             result.update({
                 '__total': inst.count(),
                 '__count': inst.count(),
-                '__limit': limit or 50,
-                '__begin': 0,
+                '__limit': limit,
+                '__begin': begin,
             })
-            result['objects'] = list(inst.values(*[getattr(self._meta.table, x) \
-                                              for x in self._meta.table.__table__.c.keys()]))
+            if order_by:
+                pass
+            inst = inst.slice(begin, begin+limit)  # inst[begin:begin+limit]
+            result['objects'] = list(inst.values(*[getattr(self._meta.table, x) for x in include_fields]))
         else:
-            result['object'] = dict([(k, getattr(inst, k)) for k in self._meta.table.__table__.c.keys()])
+            self.logger.debug("Inst >>> %s", inst)
+            self.logger.debug("Include Fields: %s", include_fields)
+            result['object'] = dict([(k, getattr(inst, k)) for k in include_fields])
         return result
+
+    def _query(self, query=None):
+        """_query: return a Query instance according to the giving query data.
+        """
+        inst = self.db_session.query(self._meta.table)
+        if not query:
+            return inst
+        default_query = query.pop('__default', None)
+        if default_query:
+            inst = inst.filter_by(**default_query)
+        for k, v in query.items():
+            pass
+        return inst
 
     def _read(self, pk=None, query=None,
               include_fields=None, exclude_fields=None, extend_fields=None, order_by=None, begin=None, limit=None):
@@ -678,15 +724,18 @@ class RestletHandler(RequestHandler):
         self.logger.debug('begin: %s', begin)
         self.logger.debug('limit: %s', limit)
         if pk:
-            try:
-                inst = self.db_session.query(self._meta.table).filter_by(**{self._meta.pk_regex[0]: pk}).one()
-            except Exception, e:
-                #self.logger.exception(e)
+            inst = self.db_session.query(self._meta.table).get(pk)
+            if not inst:
                 raise exceptions.NotFound()
         else:
-            inst = self.db_session.query(self._meta.table)
+            inst = self._query(query)
         self.logger.debug('Inst: %s', type(inst))
-        return self._serialize(inst)
+        return self._serialize(inst, include_fields=include_fields,
+                               exclude_fields=exclude_fields,
+                               extend_fields=extend_fields,
+                               order_by=order_by,
+                               begin=begin,
+                               limit=limit)
 
     def _create(self, arguments,
                 include_fields=None, exclude_fields=None, extend_fields=None):
