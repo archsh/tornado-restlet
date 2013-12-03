@@ -26,7 +26,7 @@ class User(Base):
     fullname = Column(String(50), nullable=True)
     password = Column(String(40), nullable=True)
     key = Column(String(32), nullable=True, doc='Another key')
-    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True, key='group')
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
 
 
 class UserHandler(RestletHandler):
@@ -41,7 +41,6 @@ class UserHandler(RestletHandler):
         self.logger.info('Total Spent: %s', self.t2 - self.t1)
 
     class Meta:
-        testing = True
         table = User
         allowed = ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
         denied = None  # Can be a tuple of HTTP METHODs
