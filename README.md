@@ -1,4 +1,4 @@
-RESTlet
+RESTlet for Tornado
 ======================
 
 **A RESTful extension for tornado.**
