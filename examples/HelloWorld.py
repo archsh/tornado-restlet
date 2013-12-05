@@ -4,7 +4,8 @@ import datetime
 from restlet.application import RestletApplication
 from restlet.handler import RestletHandler, encoder, decoder, route
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Sequence, MetaData, ForeignKey
+from sqlalchemy import Column, Integer, String, Sequence, MetaData, ForeignKey, Text, SmallInteger, Boolean, Numeric
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.orm.query import Query
 

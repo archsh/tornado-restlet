@@ -299,14 +299,14 @@ def query_reparse(query):
     return controls, new_query
 
 
-class HandlerBase(type):
+class RestletBase(type):
     """
     Metaclass for all models.
     """
     def __new__(cls, name, bases, attrs):
         class Meta:
             pass
-        super_new = super(HandlerBase, cls).__new__
+        super_new = super(RestletBase, cls).__new__
         attr_meta = attrs.pop('Meta', None)
         attr_meta = attr_meta or Meta()
         for k in ('table', 'pk_regex', 'pk_spec', 'allowed', 'denied', 'changable', 'readonly', 'invisible', 'order_by',
@@ -387,7 +387,7 @@ class RestletHandler(RequestHandler):
             import hashlib
             return hashlib.new('md5', passwd).hexdigest()
     """
-    __metaclass__ = HandlerBase
+    __metaclass__ = RestletBase
 
     def __init__(self, *args, **kwargs):
         super(RestletHandler, self).__init__(*args, **kwargs)
