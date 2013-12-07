@@ -275,6 +275,14 @@ def str2int(s):
         return int(s)
 
 
+QUERY_LOOKUPS = ('not', 'contains', 'startswith', 'endswith', 'in', 'range', 'lt', 'lte', 'gt', 'gte',
+                 'year', 'month', 'day', 'hour', 'minute', 'weekday', '')
+
+
+def build_filter(mdl, key, value):
+    pass
+
+
 def query_reparse(query):
     """query_reparse: reparse the query.
     Returns controls dictionary and re-constructed query dictionary.
@@ -698,6 +706,10 @@ class RestletHandler(RequestHandler):
             self.logger.debug("Include Fields: %s", include_fields)
             result['object'] = dict([(k, getattr(inst, k)) for k in include_fields])
         return result
+
+    def _gen_filter(self, key, value):
+        assert key
+        return None
 
     def _query(self, query=None):
         """_query: return a Query instance according to the giving query data.
