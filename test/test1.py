@@ -108,10 +108,15 @@ session.flush()
 ### slide:: pi
 ### title:: Query the user in groups with permission(4)
 
-q = session.query(User).join(User.group).join(Group.permissions).filter(Permission.id==4)
+q = session.query(User).join(User.group).join(Group.permissions).filter(Permission.id == 4)
 q.all()
 
+### slide::
+### title:: A little bit inside...
 
-
+Group.__mapper__.relationships.permissions.mapper.class_
+Group.__mapper__.relationships.permissions.direction
+User.__mapper__.relationships.group.direction
+Group.__mapper__.relationships.users.direction
 
 ### slide::
