@@ -898,6 +898,7 @@ class RestletHandler(RequestHandler):
 
     def _read(self, pk=None, query=None,
               include_fields=None, exclude_fields=None, extend_fields=None, order_by=None, begin=None, limit=None):
+        """_read: read record(s) from table."""
         self.logger.debug('%s:> _read', self.__class__.__name__)
         self.logger.debug('pk: %s', pk)
         self.logger.debug('query: %s', query)
@@ -927,25 +928,20 @@ class RestletHandler(RequestHandler):
                                begin=begin,
                                limit=limit)
 
-    def _create(self, arguments,
-                include_fields=None, exclude_fields=None, extend_fields=None):
+    def _create(self, arguments):
+        """_create: Create record(s)."""
         self.logger.debug('%s:> _create', self.__class__.__name__)
         self.logger.debug('arguments: %s', arguments)
-        self.logger.debug('include_fields: %s', include_fields)
-        self.logger.debug('exclude_fields: %s', exclude_fields)
-        self.logger.debug('extend_fields: %s', extend_fields)
 
-    def _update(self, arguments, pk=None, query=None,
-                include_fields=None, exclude_fields=None, extend_fields=None):
+    def _update(self, arguments, pk=None, query=None):
+        """_update: Update record(s) according to query."""
         self.logger.debug('%s:> _update', self.__class__.__name__)
         self.logger.debug('pk: %s', pk)
         self.logger.debug('query: %s', query)
-        self.logger.debug('include_fields: %s', include_fields)
-        self.logger.debug('exclude_fields: %s', exclude_fields)
-        self.logger.debug('extend_fields: %s', extend_fields)
         self.logger.debug('arguments: %s', arguments)
 
     def _delete(self, pk=None, query=None):
+        """_delete: Delete records from table according to query or pk."""
         self.logger.debug('%s:> _delete', self.__class__.__name__)
         self.logger.debug('pk: %s', pk)
         self.logger.debug('query: %s', query)
