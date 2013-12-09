@@ -6,6 +6,7 @@ import traceback
 from sqlalchemy.orm.query import Query
 from sqlalchemy import Column, Integer, SmallInteger, BigInteger
 from sqlalchemy import String, Unicode
+from sqlalchemy import and_, or_
 from tornado.web import RequestHandler, HTTPError
 from tornado import escape
 from tornado import httputil
@@ -22,6 +23,8 @@ try:
     import yaml
 except:
     yaml = None
+
+_logger = logging.getLogger('tornado.restlet')
 
 
 def encoder(*fields):
@@ -279,8 +282,60 @@ QUERY_LOOKUPS = ('not', 'contains', 'startswith', 'endswith', 'in', 'range', 'lt
                  'year', 'month', 'day', 'hour', 'minute', 'weekday', '')
 
 
-def build_filter(mdl, key, value):
-    pass
+def build_filter(model, key, value, joins=None):
+    _logger.debug('build_filter>>> %s | %s | %s | %s', model, key, value, joins)
+    if not key:
+        return None, None
+    k1 = key.pop(0)  # Get the first part of key
+    kk = k1.split('__')
+    kk1 = kk.pop(0)
+    if kk1 in model.__table__.c.keys():  # Check if this is a field
+        field = getattr(model, kk1)
+        if not kk:
+            return field == value, joins
+        else:
+            _not_ = False
+            if 'not' in kk:
+                _not_ = True
+                kk.remove('not')
+            if len(kk) > 1:
+                return None, None
+            elif not kk:
+                return (~(field == value) if _not_ else (field == value)), joins
+            op = kk[0]
+            if 'contains' == op:
+                exp = field.like(u'%%%s%%' % value)
+            elif 'startswith' == op:
+                exp = field.like(u'%s%%' % value)
+            elif 'endswith' == op:
+                exp = field.like(u'%%%s' % value)
+            elif 'in' == op:
+                exp = field.in_(value if isinstance(value, (list, tuple)) else str2list(value))
+            elif 'range' == op:
+                value = value if isinstance(value, (list, tuple)) else str2list(value)
+                if len(value) != 2:
+                    return None, None
+                exp = and_(field >= value[0], field <= value[1])
+            elif 'lt' == op:
+                exp = field < value
+            elif 'lte' == op:
+                exp = field <= value
+            elif 'gt' == op:
+                exp = field > value
+            elif 'gte' == op:
+                exp = field >= value
+            elif op in ('year', 'month', 'day', 'hour', 'minute', 'weekday'):
+                pass
+            else:
+                return None, None
+            return ~exp if _not_ else exp, joins
+    elif k1 in model.__mapper__.relationships.keys() and key:  # Check if this is a relationship
+        relationship = getattr(model, k1)
+        return build_filter(model.__mapper__.relationships[k1].mapper.class_, key, value,
+                            joins=joins.append(relationship) if joins
+                            else [relationship])
+    else:  # Check of this is
+        return None, None
 
 
 def query_reparse(query):
@@ -707,9 +762,12 @@ class RestletHandler(RequestHandler):
             result['object'] = dict([(k, getattr(inst, k)) for k in include_fields])
         return result
 
-    def _gen_filter(self, key, value):
+    def _build_filter(self, key, value):
         assert key
-        return None
+        flt, jns = build_filter(self._meta.table,
+                                key.split('.') if isinstance(key, (str, unicode)) else key, value, joins=None)
+        self.logger.debug('_build_filter >>> %s | %s', flt, jns)
+        return flt, jns
 
     def _query(self, query=None):
         """_query: return a Query instance according to the giving query data.
@@ -719,9 +777,35 @@ class RestletHandler(RequestHandler):
             return inst
         default_query = query.pop('__default', None)
         if default_query:
-            inst = inst.filter_by(**default_query)
-        for k, v in query.items():
-            pass
+            filters = list()
+            joins = list()
+            for k, v in default_query.items():
+                f, j = self._build_filter(k, v)
+                if f is not None:
+                    filters.append(f)
+                    if j is not None:
+                        joins.extend(j)
+            self.logger.debug('[default] filters: %s', filters)
+            self.logger.debug('[default] joins: %s', joins)
+            for j in joins:
+                inst = inst.join(j)
+            if filters:
+                inst = inst.filter(and_(*filters))
+        for pair, conditions in query.items():
+            filters = list()
+            joins = list()
+            for k, v in conditions.items():
+                f, j = self._build_filter(k, v)
+                if f is not None:
+                    filters.append(f)
+                    if j is not None:
+                        joins.extend(j)
+            self.logger.debug('[%s] filters: %s', pair, filters)
+            self.logger.debug('[%s] joins: %s', pair, joins)
+            for j in joins:
+                inst = inst.join(j)
+            if filters:
+                inst = inst.filter(and_(*filters))
         return inst
 
     def _read(self, pk=None, query=None,
