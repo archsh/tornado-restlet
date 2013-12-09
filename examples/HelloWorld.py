@@ -4,13 +4,17 @@ import datetime
 from restlet.application import RestletApplication
 from restlet.handler import RestletHandler, encoder, decoder, route
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Sequence, MetaData, ForeignKey, Text, SmallInteger, Boolean, Numeric
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData,
+                        ForeignKey, Text, SmallInteger, Boolean, Numeric)
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy.orm.query import Query
 
 
 Base = declarative_base()
+
+
+group2permission_table = Table('groups2permissions', Base.metadata,
+                               Column('group_id', Integer, ForeignKey('groups.id')),
+                               Column('permission_id', Integer, ForeignKey('permissions.id')))
 
 
 class Group(Base):
@@ -18,6 +22,7 @@ class Group(Base):
     id = Column(Integer, Sequence('group_id_seq'), primary_key=True)
     name = Column(String(50))
     users = relationship('User', backref="group")
+    permissions = relationship('Permission', secondary=group2permission_table)
 
 
 class User(Base):
@@ -28,6 +33,23 @@ class User(Base):
     password = Column(String(40), nullable=True)
     key = Column(String(32), nullable=True, doc='Another key')
     group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
+
+
+class Permission(Base):
+    __tablename__ = 'permissions'
+    id = Column(Integer, Sequence('permission_id_seq'), primary_key=True)
+    name = Column(String(24), unique=True, nullable=False)
+    description = Column(String(128), nullable=True)
+
+
+class GroupHandler(RestletHandler):
+    class Meta:
+        table = Group
+
+
+class PermissionHandler(RestletHandler):
+    class Meta:
+        table = Permission
 
 
 class UserHandler(RestletHandler):
@@ -69,16 +91,28 @@ class UserHandler(RestletHandler):
 if __name__ == "__main__":
     import tornado.ioloop
     logging.basicConfig(level=logging.DEBUG)
-    application = RestletApplication([UserHandler.route_to('/users'), ],
-                                     dburi='sqlite:///:memory:', loglevel='DEBUG', debug=True)
+    application = RestletApplication([UserHandler.route_to('/users'),
+                                      GroupHandler.route_to('/groups'),
+                                      PermissionHandler.route_to('/permissions')],
+                                     dburi='sqlite:///:memory:', loglevel='DEBUG', debug=True, dblogging=True)
     Base.metadata.create_all(application.db_engine)
     session = application.new_db_session()
-    group = Group(name='Group 1')
-    session.add(group)
-    session.add(User(name='u1', fullname='User 1', password='password 1', key='key 1', group=group))
-    session.add(User(name='u2', fullname='User 2', password='password 2', key='key 2', group=group))
-    session.add(User(name='u3', fullname='User 3', password='password 3', key='key 3', group=group))
-    session.add(User(name='u4', fullname='User 4', password='password 4', key='key 4', group=group))
+    group1 = Group(name='Group 1')
+    group2 = Group(name='Group 2')
+
+    p1 = Permission(name='Read')
+    p2 = Permission(name='Update')
+    p3 = Permission(name='Create')
+    p4 = Permission(name='Delete')
+
+    group1.permissions = [p1, p2, p3, p4]
+    group2.permissions = [p1, p2]
+
+    u1 = User(name='u1', fullname='User 1', password='password 1', key='key 1', group=group1)
+    u2 = User(name='u2', fullname='User 2', password='password 2', key='key 2', group=group2)
+    u3 = User(name='u3', fullname='User 3', password='password 3', key='key 3', group=group1)
+    u4 = User(name='u4', fullname='User 4', password='password 4', key='key 4', group=group2)
+    session.add_all([group1, group2])
     session.commit()
 
     application.listen(8888)
