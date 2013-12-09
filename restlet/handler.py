@@ -286,13 +286,21 @@ def build_filter(model, key, value, joins=None):
     _logger.debug('build_filter>>> %s | %s | %s | %s', model, key, value, joins)
     if not key:
         return None, None
+
+    def _encode_(k, v):
+        f = model.__handler__._get_encoder(k) if hasattr(model, '__handler__') else None
+        if f is None:
+            return v
+        else:
+            return f(v)
+
     k1 = key.pop(0)  # Get the first part of key
     kk = k1.split('__')
     kk1 = kk.pop(0)
     if kk1 in model.__table__.c.keys():  # Check if this is a field
         field = getattr(model, kk1)
         if not kk:
-            return field == value, joins
+            return field == _encode_(kk1, value), joins
         else:
             _not_ = False
             if 'not' in kk:
@@ -301,29 +309,30 @@ def build_filter(model, key, value, joins=None):
             if len(kk) > 1:
                 return None, None
             elif not kk:
-                return (~(field == value) if _not_ else (field == value)), joins
+                return (~(field == _encode_(kk1, value)) if _not_ else (field == _encode_(kk1, value))), joins
             op = kk[0]
             if 'contains' == op:
-                exp = field.like(u'%%%s%%' % value)
+                exp = field.like(u'%%%s%%' % _encode_(kk1, value))
             elif 'startswith' == op:
-                exp = field.like(u'%s%%' % value)
+                exp = field.like(u'%s%%' % _encode_(kk1, value))
             elif 'endswith' == op:
-                exp = field.like(u'%%%s' % value)
+                exp = field.like(u'%%%s' % _encode_(kk1, value))
             elif 'in' == op:
-                exp = field.in_(value if isinstance(value, (list, tuple)) else str2list(value))
+                exp = field.in_(map(lambda x: _encode_(kk1, x),
+                                    value if isinstance(value, (list, tuple)) else str2list(value)))
             elif 'range' == op:
-                value = value if isinstance(value, (list, tuple)) else str2list(value)
+                value = map(lambda x: _encode_(kk1, x), value if isinstance(value, (list, tuple)) else str2list(value))
                 if len(value) != 2:
                     return None, None
-                exp = and_(field >= value[0], field <= value[1])
+                exp = and_(field >= _encode_(kk1, value[0]), field <= _encode_(kk1, value[1]))
             elif 'lt' == op:
-                exp = field < value
+                exp = field < _encode_(kk1, value)
             elif 'lte' == op:
-                exp = field <= value
+                exp = field <= _encode_(kk1, value)
             elif 'gt' == op:
-                exp = field > value
+                exp = field > _encode_(kk1, value)
             elif 'gte' == op:
-                exp = field >= value
+                exp = field >= _encode_(kk1, value)
             elif op in ('year', 'month', 'day', 'hour', 'minute', 'weekday'):
                 pass
             else:
@@ -655,6 +664,34 @@ class RestletHandler(RequestHandler):
             self._when_complete(self.prepare(), self._execute_method)
         except Exception as e:
             self._handle_request_exception(e)
+
+    @classmethod
+    def _get_encoder(cls, column):
+        if column in cls._meta.encoders:
+            return cls._meta.encoders[column]
+        else:
+            return None
+
+    @classmethod
+    def _get_validator(cls, column):
+        if column in cls._meta.validators:
+            return cls._meta.validators[column]
+        else:
+            return None
+
+    @classmethod
+    def _get_decoder(cls, column):
+        if column in cls._meta.decoders:
+            return cls._meta.decoders[column]
+        else:
+            return None
+
+    @classmethod
+    def _get_generator(cls, column):
+        if column in cls._meta.generators:
+            return cls._meta.generators[column]
+        else:
+            return None
 
     def _execute_method(self):
         def unquote(s):
