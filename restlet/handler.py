@@ -623,7 +623,7 @@ class RestletHandler(RequestHandler):
             else:
                 self.send_error(e.status_code, exc_info=sys.exc_info())
         elif isinstance(e, exceptions.RestletError):
-            self.send_error(e.error, exc_info=sys.exc_info())
+            self.send_error(e.error, exc_info=sys.exc_info(), message=e.message)
         else:
             self.send_error(500, exc_info=sys.exc_info())
 
@@ -783,6 +783,7 @@ class RestletHandler(RequestHandler):
         include_fields = list((set(include_fields or meta.table.__table__.columns.keys()) - set(exclude_fields or []))
                               | set(meta.table.__table__.primary_key.columns.keys()))
         if extend_fields:
+            self.logger.debug('extend_fields: %s', extend_fields)
             pass
         if isinstance(inst, Query):
             begin = begin or 0
@@ -796,12 +797,12 @@ class RestletHandler(RequestHandler):
             if order_by:
                 pass
             inst = inst.slice(begin, begin+limit)  # inst[begin:begin+limit]
-            result['objects'] = serialize(meta.table, inst, include_fields=include_fields)
+            result['objects'] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
              # list(inst.values(*[getattr(self._meta.table, x) for x in include_fields]))
         else:
             self.logger.debug("Inst >>> %s", inst)
             self.logger.debug("Include Fields: %s", include_fields)
-            result['object'] = serialize(meta.table, inst, include_fields=include_fields)
+            result['object'] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
             # dict([(k, getattr(inst, k)) for k in include_fields])
         return result
 
