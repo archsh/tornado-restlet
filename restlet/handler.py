@@ -7,6 +7,7 @@ from sqlalchemy.orm.query import Query
 from sqlalchemy import Column, Integer, SmallInteger, BigInteger
 from sqlalchemy import String, Unicode
 from sqlalchemy import and_, or_
+from sqlalchemy.orm import joinedload, subqueryload
 from tornado.web import RequestHandler, HTTPError
 from tornado import escape
 from tornado import httputil
@@ -349,6 +350,49 @@ def build_filter(model, key, value, joins=None):
         return build_filter(model.__mapper__.relationships[k1].mapper.class_, key, value, joins=joins)
     else:  # Check of this is
         return None, None
+
+
+def build_order_by(cls, order_by):
+    """build_order_by: build order by criterias with the given list order_by in strings."""
+    def _gen_order_by(c, by):
+        return None, None
+
+    joins = list()
+    order_bys = list()
+    if not order_by:
+        return None, None
+    for x in order_by:
+        j, o = _gen_order_by(cls, x)
+        if not o:
+            continue
+        order_bys.append(o)
+        if j:
+            joins.extend(j)
+    return joins, order_bys
+
+
+def find_join_loads(cls, extend_fields):
+    """find_join_loads: find the relationships from extend_fields which we can call joinloads for EagerLoad..."""
+    def _relations_(c, exts):
+        if not exts:
+            return None
+        ret = []
+        r = exts.pop(0)
+        if r in c.__mapper__.relationships.keys():
+            ret.append(r)
+            r1 = _relations_(c.__mapper__.relationships[r].mapper.class_, exts)
+            if r1:
+                ret.extend(r1)
+        return ret
+
+    if not extend_fields:
+        return None
+    result = list()
+    for x in extend_fields:
+        y = _relations_(cls, x.split('.'))
+        if y:
+            result.append('.'.join(y))
+    return result
 
 
 def query_reparse(query):
@@ -863,12 +907,18 @@ class RestletHandler(RequestHandler):
         self.logger.debug('order_by: %s', order_by)
         self.logger.debug('begin: %s', begin)
         self.logger.debug('limit: %s', limit)
+        join_loads = find_join_loads(self._meta.table, extend_fields)
+        join_loads = [joinedload(x) for x in join_loads] if join_loads else None
+        self.logger.debug('join_loads: %s', join_loads)
         if pk:
-            inst = self.db_session.query(self._meta.table).get(pk)
+            inst = self.db_session.query(self._meta.table).options(*join_loads).get(pk) if join_loads \
+                else self.db_session.query(self._meta.table).get(pk)
             if not inst:
                 raise exceptions.NotFound()
         else:
             inst = self._query(query)
+            if join_loads:
+                inst = inst.options(*join_loads)
         self.logger.debug('Inst: %s', type(inst))
         return self._serialize(inst, include_fields=include_fields,
                                exclude_fields=exclude_fields,
