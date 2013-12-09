@@ -330,10 +330,13 @@ def build_filter(model, key, value, joins=None):
                 return None, None
             return ~exp if _not_ else exp, joins
     elif k1 in model.__mapper__.relationships.keys() and key:  # Check if this is a relationship
+        _logger.debug('go relationships: %s, %s', k1, joins)
         relationship = getattr(model, k1)
-        return build_filter(model.__mapper__.relationships[k1].mapper.class_, key, value,
-                            joins=joins.append(relationship) if joins
-                            else [relationship])
+        if joins:
+            joins.append(relationship)
+        else:
+            joins = [relationship]
+        return build_filter(model.__mapper__.relationships[k1].mapper.class_, key, value, joins=joins)
     else:  # Check of this is
         return None, None
 
@@ -805,7 +808,7 @@ class RestletHandler(RequestHandler):
             for j in joins:
                 inst = inst.join(j)
             if filters:
-                inst = inst.filter(and_(*filters))
+                inst = inst.filter(or_(*filters))
         return inst
 
     def _read(self, pk=None, query=None,
