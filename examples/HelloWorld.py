@@ -77,7 +77,8 @@ class UserHandler(RestletHandler):
         extensible = None  # None means no fields is extensible or a tuple with fields.
 
     @encoder('password')
-    def password_encoder(self, passwd, inst=None):
+    def password_encoder(passwd, inst=None):  # All the encoder/decoder/generator/validator can not bound
+    # to class or instance
         import hashlib
         return hashlib.new('md5', passwd).hexdigest()
 
