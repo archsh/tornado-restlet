@@ -109,10 +109,16 @@ if __name__ == "__main__":
     group1.permissions = [p1, p2, p3, p4]
     group2.permissions = [p1, p2]
 
-    u1 = User(name='u1', fullname='User 1', password='password 1', key='key 1', group=group1)
-    u2 = User(name='u2', fullname='User 2', password='password 2', key='key 2', group=group2)
-    u3 = User(name='u3', fullname='User 3', password='password 3', key='key 3', group=group1)
-    u4 = User(name='u4', fullname='User 4', password='password 4', key='key 4', group=group2)
+    def password_encoder(passwd, inst=None):  # All the encoder/decoder/generator/validator can not bound
+    # to class or instance
+        import hashlib
+        return hashlib.new('md5', passwd).hexdigest()
+
+    u1 = User(name='u1', fullname='User 1', password=password_encoder('password 1'), key='key 1', group=group1)
+    u2 = User(name='u2', fullname='User 2', password=password_encoder('password 2'), key='key 2', group=group2)
+    u3 = User(name='u3', fullname='User 3', password=password_encoder('password 3'), key='key 3', group=group1)
+    u4 = User(name='u4', fullname='User 4', password=password_encoder('password 4'), key='key 4', group=group2)
+
     session.add_all([group1, group2])
     session.commit()
 
