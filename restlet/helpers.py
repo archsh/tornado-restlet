@@ -2,9 +2,9 @@
 import decimal
 import datetime
 from sqlalchemy import Column, Integer, Float, Numeric, SmallInteger, BigInteger
-from sqlalchemy import DateTime, Date, Time
-from sqlalchemy import Text, String, Unicode
-from sqlalchemy import LargeBinary, Boolean  # , _Binary, NullType
+from sqlalchemy import DateTime, Date, Time, Boolean
+# from sqlalchemy import Text, String, Unicode
+# from sqlalchemy import LargeBinary,   # , _Binary, NullType
 
 
 __FIELD_PROCESSORS__ = {
