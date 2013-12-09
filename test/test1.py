@@ -86,6 +86,8 @@ g1 = Group(name='Admin')
 g2 = Group(name='Manager')
 g3 = Group(name='Guest')
 
+g1.users = [u1, u2]
+
 session.add_all([g1, g2, g3])
 session.flush()
 
