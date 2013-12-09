@@ -334,7 +334,7 @@ def build_filter(model, key, value, joins=None):
             elif 'gte' == op:
                 exp = field >= _encode_(kk1, value)
             elif op in ('year', 'month', 'day', 'hour', 'minute', 'weekday'):
-                pass
+                return None, None  # TODO: To be implemented for datetime operaters.
             else:
                 return None, None
             return ~exp if _not_ else exp, joins
@@ -348,6 +348,37 @@ def build_filter(model, key, value, joins=None):
         return build_filter(model.__mapper__.relationships[k1].mapper.class_, key, value, joins=joins)
     else:  # Check of this is
         return None, None
+
+
+def serialize_object(cls, inst, include_fields=None, extend_fields=None):
+    """serialize_object: serialize a single object from model instance into a dictionary.
+    """
+    if not isinstance(inst, cls):
+        return None
+    include_fields = include_fields or cls.__table__.c.keys()
+    result = dict([(k, getattr(inst, k)) for k in include_fields])
+    # TODO: Extend fields ....
+    return result
+
+
+def serialize_query(cls, inst, include_fields=None, extend_fields=None):
+    """serialize_query: serialize a query into a list of object dictionary."""
+    if not isinstance(inst, Query):
+        return None
+    include_fields = include_fields or cls.__table__.c.keys()
+    result = list(inst.values(*[getattr(cls, k) for k in include_fields]))
+    # TODO: Extend fields ....
+    return result
+
+
+def serialize(cls, inst, include_fields=None, extend_fields=None):
+    """serialize: serialize model object(s) into dictionary(s)."""
+    if isinstance(inst, Query):
+        return serialize_query(cls, inst, include_fields=include_fields,
+                               extend_fields=extend_fields)
+    else:
+        return serialize_object(cls, inst, include_fields=include_fields,
+                                extend_fields=extend_fields)
 
 
 def query_reparse(query):
@@ -795,11 +826,13 @@ class RestletHandler(RequestHandler):
             if order_by:
                 pass
             inst = inst.slice(begin, begin+limit)  # inst[begin:begin+limit]
-            result['objects'] = list(inst.values(*[getattr(self._meta.table, x) for x in include_fields]))
+            result['objects'] = serialize(meta.table, inst, include_fields=include_fields)
+             # list(inst.values(*[getattr(self._meta.table, x) for x in include_fields]))
         else:
             self.logger.debug("Inst >>> %s", inst)
             self.logger.debug("Include Fields: %s", include_fields)
-            result['object'] = dict([(k, getattr(inst, k)) for k in include_fields])
+            result['object'] = serialize(meta.table, inst, include_fields=include_fields)
+            # dict([(k, getattr(inst, k)) for k in include_fields])
         return result
 
     def _build_filter(self, key, value):
