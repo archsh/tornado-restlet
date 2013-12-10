@@ -40,3 +40,8 @@ class NotImplemented(RestletError):
 class InvalidExpression(RestletError):
     _error_ = 400
     _message_ = 'Invalid Expression.'
+
+
+class InvalidData(RestletError):
+    _error_ = 400
+    _message_ = 'Invalid Data.'
