@@ -99,7 +99,7 @@ if __name__ == "__main__":
                                       PermissionHandler.route_to('/permissions')],
                                      dburi='postgresql://postgres:postgres@localhost/test',  # 'sqlite:///:memory:',
                                      loglevel='DEBUG', debug=True, dblogging=True)
-    if True:
+    if False:
         Base.metadata.create_all(application.db_engine)
         session = application.new_db_session()
         group1 = Group(name='Group 1')

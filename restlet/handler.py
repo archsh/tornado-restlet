@@ -1017,6 +1017,8 @@ class RestletHandler(RequestHandler):
                     relatedobjs[k] = v
                 else:
                     pass
+            if not objdata:
+                raise exceptions.InvalidData(message='Invalid data! Empty object is not allowed!')
             objdata = self._update_object_data(self._encode_object_data(self._validate_object_data(objdata)))
             obj = self._meta.table(**objdata)
             for k, v in relatedobjs.items():
