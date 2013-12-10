@@ -628,9 +628,8 @@ class RestletHandler(RequestHandler):
         #self.write('%s :> %s' % (self._meta.table, 'DELETE'))
         pk = kwargs.get(self._meta.pk_regex[0], None)
         query = self.request.query
-        result = self._delete(pk=pk, query=query)
-
-        return result
+        objects = self._delete(pk=pk, query=query)
+        return self._serialize(objects)
 
     @request_handler
     def head(self, *args, **kwargs):
@@ -654,8 +653,8 @@ class RestletHandler(RequestHandler):
     def table_schema(self, *args, **kwargs):
         table = self._meta.table
         fields = dict([(c.name, {'type': '%s' % c.type, 'default': '%s' % c.default if c.default else c.default,
-                            'nullable': c.nullable, 'unique': c.unique,
-                            'doc': c.doc, 'primary_key': c.primary_key})
+                                 'nullable': c.nullable, 'unique': c.unique,
+                                 'doc': c.doc, 'primary_key': c.primary_key})
                        for c in table.__table__.columns.values()])
         relationships = dict([(n, {'target': r.mapper.class_.__name__,
                                    'direction': r.direction.name,
@@ -755,6 +754,10 @@ class RestletHandler(RequestHandler):
             self._when_complete(self.prepare(), self._execute_method)
         except Exception as e:
             self._handle_request_exception(e)
+
+    def finish(self, chunk=None):
+        super(RestletHandler, self).finish(chunk=chunk)
+        self.db_session.commit()
 
     @classmethod
     def _get_encoder(cls, column):
@@ -892,7 +895,12 @@ class RestletHandler(RequestHandler):
         else:
             _logger.debug("Inst >>> %s", inst)
             _logger.debug("Include Fields: %s", include_fields)
-            result['object'] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
+            objs = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
+            if isinstance(objs, (list, tuple)):
+                result['objects'] = objs
+                result['__count'] = len(objs)
+            else:
+                result['object'] = objs
             # dict([(k, getattr(inst, k)) for k in include_fields])
         return result
 
@@ -1045,6 +1053,17 @@ class RestletHandler(RequestHandler):
         _logger.debug('%s:> _delete', self.__class__.__name__)
         _logger.debug('pk: %s', pk)
         _logger.debug('query: %s', query)
-        result = None
+        if pk:
+            inst = self.db_session.query(self._meta.table).get(pk)
+            if not inst:
+                raise exceptions.NotFound()
+            result = {self._meta.table.__table__.primary_key.columns.keys()[0]: pk}
+            self.db_session.delete(inst)
+        else:
+            inst = self._query(query)
+            result = map(lambda x: x._asdict(), inst.values(*self._meta.table.__table__.primary_key.columns.values()))
+                #map(lambda x: {self._meta.table.__table__.primary_key.columns.keys()[0]: x},
+                #         inst.values(self._meta.table.__table__.primary_key.columns.values()[0]))
+            inst.delete()
 
         return result

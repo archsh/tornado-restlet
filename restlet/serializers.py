@@ -35,7 +35,7 @@ def serialize_object(cls, inst, include_fields=None, extend_fields=None):
         return map(lambda x: serialize_object(cls, x, include_fields=include_fields, extend_fields=extend_fields),
                    inst)
     if not isinstance(inst, cls):
-        return None
+        return inst
     _logger.debug('serialize_object> extend_fields: %s', extend_fields)
     include_fields = list(set(include_fields or cls.__table__.c.keys()) | set(cls.__table__.primary_key.columns.keys()))
     if not set(include_fields) <= set(cls.__table__.c.keys()):

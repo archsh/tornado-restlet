@@ -13,16 +13,17 @@ Base = declarative_base()
 
 
 group2permission_table = Table('groups2permissions', Base.metadata,
-                               Column('group_id', Integer, ForeignKey('groups.id')),
-                               Column('permission_id', Integer, ForeignKey('permissions.id')))
+                               Column('group_id', Integer, ForeignKey('groups.id', ondelete='CASCADE')),
+                               Column('permission_id', Integer, ForeignKey('permissions.id', ondelete='CASCADE')))
 
 
 class Group(Base):
     __tablename__ = 'groups'
     id = Column(Integer, Sequence('group_id_seq'), primary_key=True)
     name = Column(String(50))
-    users = relationship('User', backref="group")
-    permissions = relationship('Permission', secondary=group2permission_table)
+    users = relationship('User', backref="group", cascade="all, delete, delete-orphan",
+                         passive_deletes=True)
+    permissions = relationship('Permission', secondary=group2permission_table, passive_deletes=True)
 
 
 class User(Base):
@@ -98,7 +99,7 @@ if __name__ == "__main__":
                                       PermissionHandler.route_to('/permissions')],
                                      dburi='postgresql://postgres:postgres@localhost/test',  # 'sqlite:///:memory:',
                                      loglevel='DEBUG', debug=True, dblogging=True)
-    if False:
+    if True:
         Base.metadata.create_all(application.db_engine)
         session = application.new_db_session()
         group1 = Group(name='Group 1')

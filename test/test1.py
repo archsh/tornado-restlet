@@ -65,7 +65,8 @@ class Permission(Base):
 # Create engine and session ...
 
 from sqlalchemy import create_engine
-engine = create_engine('postgresql://postgres:postgres@localhost/test', echo=True)
+engine = create_engine('sqlite://', echo=True)
+#create_engine('postgresql://postgres:postgres@localhost/test', echo=True)
 Base.metadata.create_all(engine)
 
 from sqlalchemy.orm import Session
