@@ -587,9 +587,9 @@ class RestletHandler(RequestHandler):
         _logger.debug('Request::query> %s', self.request.query)
         _logger.debug('Request::arguments> %s', self.request.arguments)
         pk = kwargs.get(self._meta.pk_regex[0], None)
-        query = self.request.query
-        if pk or query:
-            objects = self._update(self.request.arguments, pk=pk, query=query)
+        controls, queries = query_reparse(self.request.query)
+        if pk or queries:
+            objects = self._update(self.request.arguments, pk=pk, query=queries)
         else:
             objects = self._create(self.request.arguments)
         if isinstance(objects, (list, tuple)):
@@ -610,11 +610,11 @@ class RestletHandler(RequestHandler):
         _logger.debug('Request::query> %s', self.request.query)
         _logger.debug('Request::arguments> %s', self.request.arguments)
         pk = kwargs.get(self._meta.pk_regex[0], None)
-        query = self.request.query
-        if pk or query:
-            return self._update(self.request.arguments, pk=pk, query=query)
-        else:
-            return self._create(self.request.arguments)
+        controls, queries = query_reparse(self.request.query)
+        objects = self._update(self.request.arguments, pk=pk, query=queries)
+        self.db_session.commit()
+        result = self._serialize(objects)
+        return result
         #self.write('%s :> %s' % (self._meta.table, 'PUT'))
 
     @request_handler
@@ -1047,7 +1047,27 @@ class RestletHandler(RequestHandler):
         _logger.debug('query: %s', query)
         _logger.debug('arguments: %s', arguments)
         result = None
-
+        if pk:
+            inst = self.db_session.query(self._meta.table).get(pk)
+            if not inst:
+                raise exceptions.NotFound()
+            if not isinstance(arguments, dict) or not arguments:
+                raise exceptions.InvalidData()
+            arguments = self._validate_object_data(self._encode_object_data(arguments))
+            for k, v in arguments.items():
+                setattr(inst, k, v)
+            self.db_session.add(inst)
+            result = inst
+        elif query:
+            inst = self._query(query)
+            if not isinstance(arguments, dict) or not arguments:
+                raise exceptions.InvalidData()
+            arguments = self._validate_object_data(self._encode_object_data(arguments))
+            inst.update(arguments)
+            result = inst
+        else:
+            pass
+        self.db_session.flush()
         return result
 
     def _delete(self, pk=None, query=None):
