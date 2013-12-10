@@ -1,6 +1,7 @@
 from tornado.web import Application
 import logging
 from .cache import Dummy
+_logger = logging.getLogger('tornado.restlet')
 
 
 class RestletApplication(Application):
@@ -24,8 +25,7 @@ class RestletApplication(Application):
             self.cache = Dummy()
         else:
             self.cache = Dummy()
-        self.logger = logging.getLogger('tornado.restlet')
-        self.logger.setLevel(settings.get('loglevel', 'CRITICAL'))
+        _logger.setLevel(settings.get('loglevel', 'CRITICAL'))
 
     def new_db_session(self, *args, **kwargs):
         """new_db_session: create a new db session with the default sessionmaker from application.

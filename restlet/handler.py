@@ -144,7 +144,7 @@ def request_handler(view):
     Decorator will dumps the return value of method into JSON or YAML according to the request.
     """
     def f(self, *args, **kwargs):
-        self.logger.debug('Headers: %s', self.request.headers)
+        _logger.debug('Headers: %s', self.request.headers)
         result = view(self, *args, **kwargs)
 
         if isinstance(result, (dict, list, tuple, types.GeneratorType)):
@@ -160,7 +160,7 @@ def request_handler(view):
         elif isinstance(result, (str, unicode, bytearray)):
             self.write(result)
         else:
-            self.logger.info('Result type is: %s', type(result))
+            _logger.info('Result type is: %s', type(result))
             raise exceptions.RestletError()
 
     return f
@@ -536,17 +536,16 @@ class RestletHandler(RequestHandler):
     __metaclass__ = RestletBase
 
     def __init__(self, *args, **kwargs):
+        skip_request = kwargs.pop('__skip_request', False)
         super(RestletHandler, self).__init__(*args, **kwargs)
-        self.logger = self.application.logger if hasattr(self.application, 'logger') \
-            else logging.getLogger('tornado.restlet')
-        self.logger.debug('%s [%s] > %s', self.__class__.__name__, self.request.method, self.request.uri)
+        _logger.debug('%s [%s] > %s', self.__class__.__name__, self.request.method, self.request.uri)
         ## Here we re-construct the request.query and request.arguments
         ## the request.query is not a string of url query any more, it's converted to a disctionary;
         ## and request.arguments will only take the request.body parsed values, not including values in query;
         ## This helps to seperate the query of database and update request.
         ## It's a waiste to re-construct query and arguments here again because the httpserver has already did it, but
         ## we'll think about it later.
-        if self.request.method in ('POST', 'PUT', 'PATCH'):
+        if self.request.method in ('POST', 'PUT', 'PATCH') and not skip_request:
             content_type = self.request.headers.get('Content-Type', '')
             self.request.arguments = {}
             try:
@@ -563,50 +562,53 @@ class RestletHandler(RequestHandler):
                                                   self.request.files)
                     revert_list_of_qs(self.request.arguments)
             except Exception, e:
-                self.logger.warning('Decoding request body failed according to content type (%s): %s', content_type, e)
-        if self.request.query:
+                _logger.warning('Decoding request body failed according to content type (%s): %s', content_type, e)
+        if self.request.query and not skip_request:
             self.request.query = escape.parse_qs_bytes(self.request.query, keep_blank_values=True)
             revert_list_of_qs(self.request.query)
 
-    def log(self, level, msg, *args, **kwargs):
-        self.logger.log(level, msg, *args, **kwargs)
-
     @request_handler
     def get(self, *args, **kwargs):
-        self.logger.debug('[%s] GET> args(%s), kwargs(%s)', self.__class__.__name__, args, kwargs)
-        self.logger.debug('Request::headers> %s', self.request.headers)
-        self.logger.debug('Request::path> %s', self.request.path)
-        self.logger.debug('Request::uri> %s', self.request.uri)
-        self.logger.debug('Request::query> %s', self.request.query)
-        self.logger.debug('Request::arguments> %s', self.request.arguments)
+        _logger.debug('[%s] GET> args(%s), kwargs(%s)', self.__class__.__name__, args, kwargs)
+        _logger.debug('Request::headers> %s', self.request.headers)
+        _logger.debug('Request::path> %s', self.request.path)
+        _logger.debug('Request::uri> %s', self.request.uri)
+        _logger.debug('Request::query> %s', self.request.query)
+        _logger.debug('Request::arguments> %s', self.request.arguments)
         controls, queries = query_reparse(self.request.query)
         return self._read(pk=kwargs.get(self._meta.pk_regex[0], None), query=queries, **controls)
 
     @request_handler
     def post(self, *args, **kwargs):
-        self.logger.debug('[%s] POST>', self.__class__.__name__)
-        self.logger.debug('Request::headers> %s', self.request.headers)
-        self.logger.debug('Request::path> %s', self.request.path)
-        self.logger.debug('Request::uri> %s', self.request.uri)
-        self.logger.debug('Request::query> %s', self.request.query)
-        self.logger.debug('Request::arguments> %s', self.request.arguments)
+        _logger.debug('[%s] POST>', self.__class__.__name__)
+        _logger.debug('Request::headers> %s', self.request.headers)
+        _logger.debug('Request::path> %s', self.request.path)
+        _logger.debug('Request::uri> %s', self.request.uri)
+        _logger.debug('Request::query> %s', self.request.query)
+        _logger.debug('Request::arguments> %s', self.request.arguments)
         pk = kwargs.get(self._meta.pk_regex[0], None)
         query = self.request.query
         if pk or query:
-            result = self._update(self.request.arguments, pk=pk, query=query)
+            objects = self._update(self.request.arguments, pk=pk, query=query)
         else:
-            result = self._create(self.request.arguments)
+            objects = self._create(self.request.arguments)
+        if isinstance(objects, (list, tuple)):
+            self.db_session.add_all(objects)
+        else:
+            self.db_session.add(objects)
+        self.db_session.commit()
+        result = self._serialize(objects)
         return result
         #self.write('%s :> %s' % (self._meta.table, 'POST'))
 
     @request_handler
     def put(self, *args, **kwargs):
-        self.logger.debug('[%s] PUT>', self.__class__.__name__)
-        self.logger.debug('Request::headers> %s', self.request.headers)
-        self.logger.debug('Request::path> %s', self.request.path)
-        self.logger.debug('Request::uri> %s', self.request.uri)
-        self.logger.debug('Request::query> %s', self.request.query)
-        self.logger.debug('Request::arguments> %s', self.request.arguments)
+        _logger.debug('[%s] PUT>', self.__class__.__name__)
+        _logger.debug('Request::headers> %s', self.request.headers)
+        _logger.debug('Request::path> %s', self.request.path)
+        _logger.debug('Request::uri> %s', self.request.uri)
+        _logger.debug('Request::query> %s', self.request.query)
+        _logger.debug('Request::arguments> %s', self.request.arguments)
         pk = kwargs.get(self._meta.pk_regex[0], None)
         query = self.request.query
         if pk or query:
@@ -617,12 +619,12 @@ class RestletHandler(RequestHandler):
 
     @request_handler
     def delete(self, *args, **kwargs):
-        self.logger.debug('[%s] DELETE>', self.__class__.__name__)
-        self.logger.debug('Request::headers> %s', self.request.headers)
-        self.logger.debug('Request::path> %s', self.request.path)
-        self.logger.debug('Request::uri> %s', self.request.uri)
-        self.logger.debug('Request::query> %s', self.request.query)
-        #self.logger.debug('Request::arguments> %s', self.request.arguments)
+        _logger.debug('[%s] DELETE>', self.__class__.__name__)
+        _logger.debug('Request::headers> %s', self.request.headers)
+        _logger.debug('Request::path> %s', self.request.path)
+        _logger.debug('Request::uri> %s', self.request.uri)
+        _logger.debug('Request::query> %s', self.request.query)
+        #_logger.debug('Request::arguments> %s', self.request.arguments)
         #self.write('%s :> %s' % (self._meta.table, 'DELETE'))
         pk = kwargs.get(self._meta.pk_regex[0], None)
         query = self.request.query
@@ -632,12 +634,12 @@ class RestletHandler(RequestHandler):
 
     @request_handler
     def head(self, *args, **kwargs):
-        self.logger.debug('[%s] HEAD>', self.__class__.__name__)
-        self.logger.debug('Request::headers> %s', self.request.headers)
-        self.logger.debug('Request::path> %s', self.request.path)
-        self.logger.debug('Request::uri> %s', self.request.uri)
-        self.logger.debug('Request::query> %s', self.request.query)
-        self.logger.debug('Request::arguments> %s', self.request.arguments)
+        _logger.debug('[%s] HEAD>', self.__class__.__name__)
+        _logger.debug('Request::headers> %s', self.request.headers)
+        _logger.debug('Request::path> %s', self.request.path)
+        _logger.debug('Request::uri> %s', self.request.uri)
+        _logger.debug('Request::query> %s', self.request.query)
+        _logger.debug('Request::arguments> %s', self.request.arguments)
         self.write('%s :> %s' % (self._meta.table, 'HEAD'))
 
     @request_handler
@@ -729,7 +731,7 @@ class RestletHandler(RequestHandler):
         if 'yaml' in self.request.query:
             self.set_header('Content-Type', 'application/x-yaml')
             output = yaml.dump(error_body)
-            self.logger.debug(output)
+            _logger.debug(output)
         else:
             self.set_header('Content-Type', 'application/json')
             output = json.dumps(error_body)
@@ -793,11 +795,11 @@ class RestletHandler(RequestHandler):
         if not self._finished:
             if self._meta.routes and self.path_kwargs.get('relpath', None):
                 method = None
-                self.logger.debug('Matching routes ...')
+                _logger.debug('Matching routes ...')
                 for spec in self._meta.routes:
                     match = spec.regex.match(self.path_kwargs.get('relpath'))
                     if match:
-                        self.logger.debug('Matched route %s ...', spec)
+                        _logger.debug('Matched route %s ...', spec)
                         if spec.methods and self.request.method not in spec.methods:
                             raise exceptions.MethodNotAllowed()
                         method = spec.request_handler
@@ -811,7 +813,7 @@ class RestletHandler(RequestHandler):
                         break
                 ### else:
                 if not method:
-                    self.logger.debug('Matching pk_spec ...')
+                    _logger.debug('Matching pk_spec ...')
                     spec = self._meta.pk_spec
                     match = spec.regex.match(self.path_kwargs.get('relpath')) if spec else None
                     if match:
@@ -831,7 +833,7 @@ class RestletHandler(RequestHandler):
                     self._when_complete(method(self, *self.path_args, **self.path_kwargs),
                                         self._execute_finish)
             else:
-                self.logger.debug('Go upper ...')
+                _logger.debug('Go upper ...')
                 method = getattr(self, self.request.method.lower())
                 self._when_complete(method(*self.path_args, **self.path_kwargs),
                                     self._execute_finish)
@@ -871,7 +873,7 @@ class RestletHandler(RequestHandler):
         include_fields = list((set(include_fields or meta.table.__table__.columns.keys()) - set(exclude_fields or []))
                               | set(meta.table.__table__.primary_key.columns.keys()))
         if extend_fields:
-            self.logger.debug('extend_fields: %s', extend_fields)
+            _logger.debug('extend_fields: %s', extend_fields)
             pass
         if isinstance(inst, Query):
             begin = begin or 0
@@ -888,8 +890,8 @@ class RestletHandler(RequestHandler):
             result['objects'] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
              # list(inst.values(*[getattr(self._meta.table, x) for x in include_fields]))
         else:
-            self.logger.debug("Inst >>> %s", inst)
-            self.logger.debug("Include Fields: %s", include_fields)
+            _logger.debug("Inst >>> %s", inst)
+            _logger.debug("Include Fields: %s", include_fields)
             result['object'] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
             # dict([(k, getattr(inst, k)) for k in include_fields])
         return result
@@ -898,7 +900,7 @@ class RestletHandler(RequestHandler):
         assert key
         flt, jns = build_filter(self._meta.table,
                                 key.split('.') if isinstance(key, (str, unicode)) else key, value, joins=None)
-        self.logger.debug('_build_filter >>> %s | %s', flt, jns)
+        _logger.debug('_build_filter >>> %s | %s', flt, jns)
         return flt, jns
 
     def _query(self, query=None):
@@ -917,23 +919,22 @@ class RestletHandler(RequestHandler):
                     filters.append(f)
                     if j is not None:
                         joins.extend(j)
-            self.logger.debug('[default] filters: %s', filters)
-            self.logger.debug('[default] joins: %s', joins)
+            _logger.debug('[default] filters: %s', filters)
+            _logger.debug('[default] joins: %s', joins)
             for j in joins:
                 inst = inst.join(j)
             if filters:
                 inst = inst.filter(and_(*filters))
         for pair, conditions in query.items():
-            filters = list()
-            joins = list()
+            filters, joins = list(), list()
             for k, v in conditions.items():
                 f, j = self._build_filter(k, v)
                 if f is not None:
                     filters.append(f)
                     if j is not None:
                         joins.extend(j)
-            self.logger.debug('[%s] filters: %s', pair, filters)
-            self.logger.debug('[%s] joins: %s', pair, joins)
+            _logger.debug('[%s] filters: %s', pair, filters)
+            _logger.debug('[%s] joins: %s', pair, joins)
             for j in joins:
                 inst = inst.join(j)
             if filters:
@@ -943,18 +944,18 @@ class RestletHandler(RequestHandler):
     def _read(self, pk=None, query=None,
               include_fields=None, exclude_fields=None, extend_fields=None, order_by=None, begin=None, limit=None):
         """_read: read record(s) from table."""
-        self.logger.debug('%s:> _read', self.__class__.__name__)
-        self.logger.debug('pk: %s', pk)
-        self.logger.debug('query: %s', query)
-        self.logger.debug('include_fields: %s', include_fields)
-        self.logger.debug('exclude_fields: %s', exclude_fields)
-        self.logger.debug('extend_fields: %s', extend_fields)
-        self.logger.debug('order_by: %s', order_by)
-        self.logger.debug('begin: %s', begin)
-        self.logger.debug('limit: %s', limit)
+        _logger.debug('%s:> _read', self.__class__.__name__)
+        _logger.debug('pk: %s', pk)
+        _logger.debug('query: %s', query)
+        _logger.debug('include_fields: %s', include_fields)
+        _logger.debug('exclude_fields: %s', exclude_fields)
+        _logger.debug('extend_fields: %s', extend_fields)
+        _logger.debug('order_by: %s', order_by)
+        _logger.debug('begin: %s', begin)
+        _logger.debug('limit: %s', limit)
         join_loads = find_join_loads(self._meta.table, extend_fields)
         join_loads = [joinedload(x) for x in join_loads] if join_loads else None
-        self.logger.debug('join_loads: %s', join_loads)
+        _logger.debug('join_loads: %s', join_loads)
         if pk:
             inst = self.db_session.query(self._meta.table).options(*join_loads).get(pk) if join_loads \
                 else self.db_session.query(self._meta.table).get(pk)
@@ -964,7 +965,7 @@ class RestletHandler(RequestHandler):
             inst = self._query(query)
             if join_loads:
                 inst = inst.options(*join_loads)
-        self.logger.debug('Inst: %s', type(inst))
+        _logger.debug('Inst: %s', type(inst))
         return self._serialize(inst, include_fields=include_fields,
                                exclude_fields=exclude_fields,
                                extend_fields=extend_fields,
@@ -974,8 +975,8 @@ class RestletHandler(RequestHandler):
 
     def _create(self, arguments):
         """_create: Create record(s)."""
-        self.logger.debug('%s:> _create', self.__class__.__name__)
-        self.logger.debug('arguments: %s', arguments)
+        _logger.debug('%s:> _create', self.__class__.__name__)
+        _logger.debug('arguments: %s', arguments)
 
         def _do_create_obj(data):
             assert isinstance(data, dict)
@@ -996,7 +997,7 @@ class RestletHandler(RequestHandler):
                 related_class = related_instrument.mapper.class_
                 if hasattr(related_class, '__handler__'):
                     related_handler = getattr(related_class, '__handler__')
-                    setattr(obj, k, related_handler()._create(v))
+                    setattr(obj, k, related_handler(self.application, self.request, __skip_request=True)._create(v))
                 else:
                     setattr(obj, k, related_class(**v) if isinstance(v, dict) else [related_class(**xx) for xx in v])
             return obj
@@ -1005,24 +1006,24 @@ class RestletHandler(RequestHandler):
             objects = map(_do_create_obj, arguments)
         else:
             objects = _do_create_obj(arguments)
-
+        _logger.debug('objects: %s', objects)
         return objects
 
     def _update(self, arguments, pk=None, query=None):
         """_update: Update record(s) according to query."""
-        self.logger.debug('%s:> _update', self.__class__.__name__)
-        self.logger.debug('pk: %s', pk)
-        self.logger.debug('query: %s', query)
-        self.logger.debug('arguments: %s', arguments)
+        _logger.debug('%s:> _update', self.__class__.__name__)
+        _logger.debug('pk: %s', pk)
+        _logger.debug('query: %s', query)
+        _logger.debug('arguments: %s', arguments)
         result = None
 
         return result
 
     def _delete(self, pk=None, query=None):
         """_delete: Delete records from table according to query or pk."""
-        self.logger.debug('%s:> _delete', self.__class__.__name__)
-        self.logger.debug('pk: %s', pk)
-        self.logger.debug('query: %s', query)
+        _logger.debug('%s:> _delete', self.__class__.__name__)
+        _logger.debug('pk: %s', pk)
+        _logger.debug('query: %s', query)
         result = None
 
         return result

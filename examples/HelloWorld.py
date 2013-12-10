@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData, DateTime, func,
                         ForeignKey, Text, SmallInteger, Boolean, Numeric)
 from sqlalchemy.orm import relationship, backref
-
+_logger = logging.getLogger('tornado.restlet')
 
 Base = declarative_base()
 
@@ -62,7 +62,7 @@ class UserHandler(RestletHandler):
 
     def on_finish(self):
         self.t2 = datetime.datetime.now()
-        self.logger.info('Total Spent: %s', self.t2 - self.t1)
+        _logger.info('Total Spent: %s', self.t2 - self.t1)
 
     class Meta:
         table = User
@@ -86,7 +86,7 @@ class UserHandler(RestletHandler):
     @route(r'/(?P<uid>[0-9]+)/login', 'POST', 'PUT')
     @route(r'/login', 'POST', 'PUT')
     def do_login(self, *args, **kwargs):
-        self.logger.info("OK, It's done!: %s, %s, %s", args, kwargs, self.request.arguments)
+        _logger.info("OK, It's done!: %s, %s, %s", args, kwargs, self.request.arguments)
         self.write("OK, It's done!: %s, %s" % (args, kwargs))
 
 
