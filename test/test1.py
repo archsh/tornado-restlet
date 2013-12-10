@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ### slide:: s
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData,
+from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData, DateTime, func,
                         ForeignKey, Text, SmallInteger, Boolean, Numeric)
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.declarative import declared_attr
@@ -49,6 +49,7 @@ class User(Base):
     fullname = Column(String(50), nullable=True)
     password = Column(String(40), nullable=True)
     key = Column(String(32), nullable=True, doc='Another key')
+    created = Column(DateTime, default=func.NOW())
     group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
 
 
@@ -64,7 +65,7 @@ class Permission(Base):
 # Create engine and session ...
 
 from sqlalchemy import create_engine
-engine = create_engine('sqlite://', echo=True)
+engine = create_engine('postgresql://postgres:postgres@localhost/test', echo=True)
 Base.metadata.create_all(engine)
 
 from sqlalchemy.orm import Session

@@ -4,7 +4,7 @@ import datetime
 from restlet.application import RestletApplication
 from restlet.handler import RestletHandler, encoder, decoder, route
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData,
+from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData, DateTime, func,
                         ForeignKey, Text, SmallInteger, Boolean, Numeric)
 from sqlalchemy.orm import relationship, backref
 
@@ -32,6 +32,7 @@ class User(Base):
     fullname = Column(String(50), nullable=True)
     password = Column(String(40), nullable=True)
     key = Column(String(32), nullable=True, doc='Another key')
+    created = Column(DateTime, default=func.NOW())
     group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
 
 
@@ -95,32 +96,34 @@ if __name__ == "__main__":
     application = RestletApplication([UserHandler.route_to('/users'),
                                       GroupHandler.route_to('/groups'),
                                       PermissionHandler.route_to('/permissions')],
-                                     dburi='sqlite:///:memory:', loglevel='DEBUG', debug=True, dblogging=True)
-    Base.metadata.create_all(application.db_engine)
-    session = application.new_db_session()
-    group1 = Group(name='Group 1')
-    group2 = Group(name='Group 2')
+                                     dburi='postgresql://postgres:postgres@localhost/test',  # 'sqlite:///:memory:',
+                                     loglevel='DEBUG', debug=True, dblogging=True)
+    if False:
+        Base.metadata.create_all(application.db_engine)
+        session = application.new_db_session()
+        group1 = Group(name='Group 1')
+        group2 = Group(name='Group 2')
 
-    p1 = Permission(name='Read')
-    p2 = Permission(name='Update')
-    p3 = Permission(name='Create')
-    p4 = Permission(name='Delete')
+        p1 = Permission(name='Read')
+        p2 = Permission(name='Update')
+        p3 = Permission(name='Create')
+        p4 = Permission(name='Delete')
 
-    group1.permissions = [p1, p2, p3, p4]
-    group2.permissions = [p1, p2]
+        group1.permissions = [p1, p2, p3, p4]
+        group2.permissions = [p1, p2]
 
-    def password_encoder(passwd, inst=None):  # All the encoder/decoder/generator/validator can not bound
-    # to class or instance
-        import hashlib
-        return hashlib.new('md5', passwd).hexdigest()
+        def password_encoder(passwd, inst=None):  # All the encoder/decoder/generator/validator can not bound
+        # to class or instance
+            import hashlib
+            return hashlib.new('md5', passwd).hexdigest()
 
-    u1 = User(name='u1', fullname='User 1', password=password_encoder('password 1'), key='key 1', group=group1)
-    u2 = User(name='u2', fullname='User 2', password=password_encoder('password 2'), key='key 2', group=group2)
-    u3 = User(name='u3', fullname='User 3', password=password_encoder('password 3'), key='key 3', group=group1)
-    u4 = User(name='u4', fullname='User 4', password=password_encoder('password 4'), key='key 4', group=group2)
+        u1 = User(name='u1', fullname='User 1', password=password_encoder('password 1'), key='key 1', group=group1)
+        u2 = User(name='u2', fullname='User 2', password=password_encoder('password 2'), key='key 2', group=group2)
+        u3 = User(name='u3', fullname='User 3', password=password_encoder('password 3'), key='key 3', group=group1)
+        u4 = User(name='u4', fullname='User 4', password=password_encoder('password 4'), key='key 4', group=group2)
 
-    session.add_all([group1, group2])
-    session.commit()
+        session.add_all([group1, group2])
+        session.commit()
 
     application.listen(8888)
     tornado.ioloop.IOLoop.instance().start()

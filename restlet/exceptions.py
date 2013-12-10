@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 class RestletError(Exception):
     _error_ = 500
+    _message_ = None
 
     def __init__(self, status=None, message=None, *args, **kwargs):
         super(RestletError, self).__init__(*args, **kwargs)
         self.status = status
-        self.message = message
+        self.message = message or self._message_
 
     @property
     def error(self):
@@ -34,3 +35,8 @@ class MethodNotAllowed(RestletError):
 
 class NotImplemented(RestletError):
     _error_ = 501
+
+
+class InvalidExpression(RestletError):
+    _error_ = 400
+    _message_ = 'Invalid Expression.'

@@ -82,3 +82,20 @@ def serialize(cls, inst, include_fields=None, extend_fields=None):
     return serialize_object(cls, inst, include_fields=include_fields, extend_fields=extend_fields)
 
 
+import simplejson as json
+import uuid
+import datetime
+#import decimal
+
+
+class ExtJsonEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return obj.strftime('%Y-%m-%dT%H:%M:%S.%f')  # isoformat()
+        if isinstance(obj, datetime.date):
+            return obj.strftime('%Y-%m-%d')  # isoformat()
+        if isinstance(obj, datetime.time):
+            return obj.strftime('%H:%M:%S.%f')  # isoformat()
+        if isinstance(obj, uuid.UUID):
+            return '%s' % uuid.UUID(obj.hex)
+        return json.JSONEncoder.default(self, obj)

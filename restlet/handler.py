@@ -6,8 +6,9 @@ import traceback
 from sqlalchemy.orm.query import Query
 from sqlalchemy import Column, Integer, SmallInteger, BigInteger
 from sqlalchemy import String, Unicode
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import joinedload, subqueryload
+from sqlalchemy.sql import expression
 from tornado.web import RequestHandler, HTTPError
 from tornado import escape
 from tornado import httputil
@@ -16,7 +17,7 @@ from tornado.log import access_log, app_log, gen_log
 #from tornado.util import bytes_type, unicode_type
 from . import exceptions
 from .helpers import simple_field_processor
-from .serializers import serialize, serialize_query, serialize_object
+from .serializers import serialize, serialize_query, serialize_object, ExtJsonEncoder
 try:
     import simplejson as json
 except:
@@ -25,7 +26,7 @@ try:
     import yaml
 except:
     yaml = None
-
+json._default_encoder = ExtJsonEncoder()
 _logger = logging.getLogger('tornado.restlet')
 
 
@@ -261,7 +262,7 @@ def make_pk_regex(pk_clmns):
 
 def str2list(s):
     if not s:
-        return None
+        return []
     if isinstance(s, (list, tuple)):
         ss = list()
         for x in s:
@@ -281,13 +282,13 @@ def str2int(s):
 
 
 QUERY_LOOKUPS = ('not', 'contains', 'startswith', 'endswith', 'in', 'range', 'lt', 'lte', 'gt', 'gte',
-                 'year', 'month', 'day', 'hour', 'minute', 'weekday', '')
+                 'year', 'month', 'day', 'hour', 'minute', 'dow', '')
 
 
 def build_filter(model, key, value, joins=None):
     _logger.debug('build_filter>>> %s | %s | %s | %s', model, key, value, joins)
     if not key:
-        return None, None
+        raise exceptions.InvalidExpression(message='Invalid Expression!')  # return None, None
 
     def _encode_(k, v):
         f = model.__handler__._get_encoder(k) if hasattr(model, '__handler__') else None
@@ -308,37 +309,62 @@ def build_filter(model, key, value, joins=None):
             if 'not' in kk:
                 _not_ = True
                 kk.remove('not')
-            if len(kk) > 1:
-                return None, None
-            elif not kk:
+            if not kk:
                 return (~(field == _encode_(kk1, value)) if _not_ else (field == _encode_(kk1, value))), joins
-            op = kk[0]
-            if 'contains' == op:
+            op = kk.pop(0)
+            if 'contains' == op and not kk:
                 exp = field.like(u'%%%s%%' % _encode_(kk1, value))
-            elif 'startswith' == op:
+            elif 'startswith' == op and not kk:
                 exp = field.like(u'%s%%' % _encode_(kk1, value))
-            elif 'endswith' == op:
+            elif 'endswith' == op and not kk:
                 exp = field.like(u'%%%s' % _encode_(kk1, value))
-            elif 'in' == op:
+            elif 'in' == op and not kk:
                 exp = field.in_(map(lambda x: _encode_(kk1, x),
                                     value if isinstance(value, (list, tuple)) else str2list(value)))
-            elif 'range' == op:
+            elif 'range' == op and not kk:
                 value = map(lambda x: _encode_(kk1, x), value if isinstance(value, (list, tuple)) else str2list(value))
                 if len(value) != 2:
-                    return None, None
+                    raise exceptions.InvalidExpression(message='Invalid Expression!')  # return None, None
                 exp = and_(field >= _encode_(kk1, value[0]), field <= _encode_(kk1, value[1]))
-            elif 'lt' == op:
+            elif 'lt' == op and not kk:
                 exp = field < _encode_(kk1, value)
-            elif 'lte' == op:
+            elif 'lte' == op and not kk:
                 exp = field <= _encode_(kk1, value)
-            elif 'gt' == op:
+            elif 'gt' == op and not kk:
                 exp = field > _encode_(kk1, value)
-            elif 'gte' == op:
+            elif 'gte' == op and not kk:
                 exp = field >= _encode_(kk1, value)
-            elif op in ('year', 'month', 'day', 'hour', 'minute', 'weekday'):
-                return None, None  # TODO: To be implemented for datetime operaters.
+            elif op in ('year', 'month', 'day', 'hour', 'minute', 'dow'):
+                # This needs the RMDBs support the EXTRACT function for DATETIME field.
+                if not kk:
+                    exp = expression.extract(op.upper(), field) == int(value)
+                elif len(kk) == 1:
+                    exop = kk[0]
+                    if exop == 'lt':
+                        exp = expression.extract(op.upper(), field) < int(value)
+                    elif exop == 'lte':
+                        exp = expression.extract(op.upper(), field) <= int(value)
+                    elif exop == 'gt':
+                        exp = expression.extract(op.upper(), field) > int(value)
+                    elif exop == 'gte':
+                        exp = expression.extract(op.upper(), field) >= int(value)
+                    elif exop == 'in':
+                        exp = expression.extract(op.upper(), field).in_(map(lambda x:int(x),
+                                                                            value if isinstance(value, (list, tuple))
+                                                                            else str2list(value)))
+                    elif exop == 'range':
+                        value = map(lambda x: int(x), value if isinstance(value, (list, tuple)) else str2list(value))
+                        if len(value) != 2:
+                            raise exceptions.InvalidExpression(message='Invalid Expression!')  # return None, None
+                        exp = and_(expression.extract(op.upper(), field) >= int(value[0]),
+                                   expression.extract(op.upper(), field) <= int(value[1]))
+                    else:
+                        raise exceptions.InvalidExpression(message='Invalid Expression!')  # return None, None
+                else:
+                    raise exceptions.InvalidExpression(message='Invalid Expression!')  # return None, None
+
             else:
-                return None, None
+                raise exceptions.InvalidExpression(message='Invalid Expression!')  # return None, None
             return ~exp if _not_ else exp, joins
     elif k1 in model.__mapper__.relationships.keys() and key:  # Check if this is a relationship
         _logger.debug('go relationships: %s, %s', k1, joins)
@@ -932,6 +958,29 @@ class RestletHandler(RequestHandler):
         """_create: Create record(s)."""
         self.logger.debug('%s:> _create', self.__class__.__name__)
         self.logger.debug('arguments: %s', arguments)
+
+        def _do_create_obj(data):
+            assert isinstance(data, dict)
+            relatedobjs = {}
+            objdata = {}
+            for k, v in data.items():
+                if k in self._meta.table.__table__.c.keys():
+                    objdata[k] = v
+                elif k in self._meta.table.__mapper__.relationships.keys():
+                    relatedobjs[k] = v
+                else:
+                    pass
+            obj = self._meta.table(**objdata)
+            for k, v in relatedobjs.items():
+                pass
+            return obj
+
+        if isinstance(arguments, (list, tuple)):
+            objects = map(_do_create_obj, arguments)
+        else:
+            objects = _do_create_obj(arguments)
+
+        return objects
 
     def _update(self, arguments, pk=None, query=None):
         """_update: Update record(s) according to query."""
