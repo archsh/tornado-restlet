@@ -42,7 +42,7 @@ def serialize_object(cls, inst, include_fields=None, extend_fields=None):
         raise exceptions.BadRequest(message='Column(s) "%s" does not exists!' % ','.join(list(
             set(include_fields) - set(cls.__table__.c.keys())
         )))
-    result = dict([(k, getattr(inst, k)) for k in include_fields])
+    result = dict((k, getattr(inst, k)) for k in include_fields)
     # TODO: Extend fields ....
     if extend_fields:
         _logger.debug('serialize_object: extend_fields=%s', extend_fields)

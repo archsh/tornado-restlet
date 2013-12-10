@@ -441,7 +441,7 @@ def query_reparse(query):
         if len(ks) == 1:
             new_query['__default'][k] = v
         else:
-            new_query['_'.join(ks)] = dict(map(None, ks, v.split('|')))
+            new_query['_'.join(ks)] = dict(zip(ks, v.split('|')))
     return controls, new_query
 
 
