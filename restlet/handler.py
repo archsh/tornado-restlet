@@ -590,7 +590,14 @@ class RestletHandler(RequestHandler):
         self.logger.debug('Request::uri> %s', self.request.uri)
         self.logger.debug('Request::query> %s', self.request.query)
         self.logger.debug('Request::arguments> %s', self.request.arguments)
-        self.write('%s :> %s' % (self._meta.table, 'POST'))
+        pk = kwargs.get(self._meta.pk_regex[0], None)
+        query = self.request.query
+        if pk or query:
+            result = self._update(self.request.arguments, pk=pk, query=query)
+        else:
+            result = self._create(self.request.arguments)
+        return result
+        #self.write('%s :> %s' % (self._meta.table, 'POST'))
 
     @request_handler
     def put(self, *args, **kwargs):
@@ -600,7 +607,13 @@ class RestletHandler(RequestHandler):
         self.logger.debug('Request::uri> %s', self.request.uri)
         self.logger.debug('Request::query> %s', self.request.query)
         self.logger.debug('Request::arguments> %s', self.request.arguments)
-        self.write('%s :> %s' % (self._meta.table, 'PUT'))
+        pk = kwargs.get(self._meta.pk_regex[0], None)
+        query = self.request.query
+        if pk or query:
+            return self._update(self.request.arguments, pk=pk, query=query)
+        else:
+            return self._create(self.request.arguments)
+        #self.write('%s :> %s' % (self._meta.table, 'PUT'))
 
     @request_handler
     def delete(self, *args, **kwargs):
@@ -609,8 +622,13 @@ class RestletHandler(RequestHandler):
         self.logger.debug('Request::path> %s', self.request.path)
         self.logger.debug('Request::uri> %s', self.request.uri)
         self.logger.debug('Request::query> %s', self.request.query)
-        self.logger.debug('Request::arguments> %s', self.request.arguments)
-        self.write('%s :> %s' % (self._meta.table, 'DELETE'))
+        #self.logger.debug('Request::arguments> %s', self.request.arguments)
+        #self.write('%s :> %s' % (self._meta.table, 'DELETE'))
+        pk = kwargs.get(self._meta.pk_regex[0], None)
+        query = self.request.query
+        result = self._delete(pk=pk, query=query)
+
+        return result
 
     @request_handler
     def head(self, *args, **kwargs):
@@ -972,7 +990,15 @@ class RestletHandler(RequestHandler):
                     pass
             obj = self._meta.table(**objdata)
             for k, v in relatedobjs.items():
-                pass
+                if not isinstance(v, (list, tuple, dict)):
+                    raise exceptions.InvalidData(message='Invalid data for "%s"!' % k)  # continue
+                related_instrument = self._meta.table.__mapper__.relationships[k]
+                related_class = related_instrument.mapper.class_
+                if hasattr(related_class, '__handler__'):
+                    related_handler = getattr(related_class, '__handler__')
+                    setattr(obj, k, related_handler()._create(v))
+                else:
+                    setattr(obj, k, related_class(**v) if isinstance(v, dict) else [related_class(**xx) for xx in v])
             return obj
 
         if isinstance(arguments, (list, tuple)):
@@ -988,9 +1014,15 @@ class RestletHandler(RequestHandler):
         self.logger.debug('pk: %s', pk)
         self.logger.debug('query: %s', query)
         self.logger.debug('arguments: %s', arguments)
+        result = None
+
+        return result
 
     def _delete(self, pk=None, query=None):
         """_delete: Delete records from table according to query or pk."""
         self.logger.debug('%s:> _delete', self.__class__.__name__)
         self.logger.debug('pk: %s', pk)
         self.logger.debug('query: %s', query)
+        result = None
+
+        return result
