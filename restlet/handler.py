@@ -896,6 +896,26 @@ class RestletHandler(RequestHandler):
             # dict([(k, getattr(inst, k)) for k in include_fields])
         return result
 
+    def _validate_object_data(self, object_data):
+        assert isinstance(object_data, dict) and object_data
+        for key, vf in self._meta.validators.items():
+            if key in object_data:
+                vf(object_data[key])
+        return object_data
+
+    def _encode_object_data(self, object_data):
+        assert isinstance(object_data, dict) and object_data
+        for key, vf in self._meta.encoders.items():
+            if key in object_data:
+                object_data[key] = vf(object_data[key])
+        return object_data
+
+    def _update_object_data(self, object_data):
+        assert isinstance(object_data, dict) and object_data
+        for key, vf in self._meta.generators.items():
+            object_data[key] = vf(object_data[key])
+        return object_data
+
     def _build_filter(self, key, value):
         assert key
         flt, jns = build_filter(self._meta.table,
@@ -989,6 +1009,7 @@ class RestletHandler(RequestHandler):
                     relatedobjs[k] = v
                 else:
                     pass
+            objdata = self._update_object_data(self._encode_object_data(self._validate_object_data(objdata)))
             obj = self._meta.table(**objdata)
             for k, v in relatedobjs.items():
                 if not isinstance(v, (list, tuple, dict)):
