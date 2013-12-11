@@ -80,7 +80,7 @@ class UserHandler(RestletHandler):
         table = User
         #allowed = ('GET', )  # 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
         #denied = ('POST',)  # Can be a tuple of HTTP METHODs
-        readonly = ('name', 'password')  # None means no field is read only
+        readonly = ('name', )  # None means no field is read only
         invisible = ('password', )  # None means no fields is invisible
         encoders = None  # {'password': lambda x, obj: hashlib.new('md5', x).hexdigest()}
                              # or use decorator @encoder(*fields)

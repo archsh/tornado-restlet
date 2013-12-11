@@ -79,3 +79,15 @@ def simple_field_processor(column):
         return value
 
     return pf
+
+
+def joinlists(skip_none=True, *args):
+    ret = list()
+    for x in args:
+        if isinstance(x, (list, tuple)):
+            ret.extend(x)
+        elif x is not None:
+            ret.append(x)
+        elif not skip_none:
+            ret.append(x)
+    return ret
