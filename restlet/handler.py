@@ -630,8 +630,8 @@ class RestletHandler(RequestHandler):
         #_logger.debug('Request::arguments> %s', self.request.arguments)
         #self.write('%s :> %s' % (self._meta.table, 'DELETE'))
         pk = kwargs.get(self._meta.pk_regex[0], None)
-        query = self.request.query
-        objects = self._delete(pk=pk, query=query)
+        controls, queries = query_reparse(self.request.query)
+        objects = self._delete(pk=pk, query=queries)
         return self._serialize(objects)
 
     @request_handler
