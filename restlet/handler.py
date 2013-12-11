@@ -589,15 +589,15 @@ class RestletHandler(RequestHandler):
         pk = kwargs.get(self._meta.pk_regex[0], None)
         controls, queries = query_reparse(self.request.query)
         if pk or queries:
-            objects = self._update(self.request.arguments, pk=pk, query=queries)
+            objects, ext_flds = self._update(self.request.arguments, pk=pk, query=queries)
         else:
-            objects = self._create(self.request.arguments)
+            objects, ext_flds = self._create(self.request.arguments)
         if isinstance(objects, (list, tuple)):
             self.db_session.add_all(objects)
         else:
             self.db_session.add(objects)
         self.db_session.commit()
-        result = self._serialize(objects)
+        result = self._serialize(objects, extend_fields=ext_flds)
         return result
         #self.write('%s :> %s' % (self._meta.table, 'POST'))
 
@@ -611,9 +611,9 @@ class RestletHandler(RequestHandler):
         _logger.debug('Request::arguments> %s', self.request.arguments)
         pk = kwargs.get(self._meta.pk_regex[0], None)
         controls, queries = query_reparse(self.request.query)
-        objects = self._update(self.request.arguments, pk=pk, query=queries)
+        objects, ext_flds = self._update(self.request.arguments, pk=pk, query=queries)
         self.db_session.commit()
-        result = self._serialize(objects)
+        result = self._serialize(objects, extend_fields=ext_flds)
         return result
         #self.write('%s :> %s' % (self._meta.table, 'PUT'))
 
@@ -1005,11 +1005,13 @@ class RestletHandler(RequestHandler):
         """_create: Create record(s)."""
         _logger.debug('%s:> _create', self.__class__.__name__)
         _logger.debug('arguments: %s', arguments)
+        ext_flds = list()
 
         def _do_create_obj(data):
             assert isinstance(data, dict)
             relatedobjs = {}
             objdata = {}
+
             for k, v in data.items():
                 if k in self._meta.table.__table__.c.keys():
                     objdata[k] = v
@@ -1028,9 +1030,16 @@ class RestletHandler(RequestHandler):
                 related_class = related_instrument.mapper.class_
                 if hasattr(related_class, '__handler__'):
                     related_handler = getattr(related_class, '__handler__')
-                    setattr(obj, k, related_handler(self.application, self.request, __skip_request=True)._create(v))
+                    related_objs, exflds = related_handler(self.application, self.request, __skip_request=True)._create(v)
+                    #setattr(obj, k, related_objs)
+                    if exflds:
+                        ext_flds.extend(['.'.join([k, x])for x in exflds])
+                    else:
+                        ext_flds.append(k)
                 else:
-                    setattr(obj, k, related_class(**v) if isinstance(v, dict) else [related_class(**xx) for xx in v])
+                    related_objs = related_class(**v) if isinstance(v, dict) else [related_class(**xx) for xx in v]
+                    ext_flds.append(k)
+                setattr(obj, k, related_objs)
             return obj
 
         if isinstance(arguments, (list, tuple)):
@@ -1038,7 +1047,7 @@ class RestletHandler(RequestHandler):
         else:
             objects = _do_create_obj(arguments)
         _logger.debug('objects: %s', objects)
-        return objects
+        return objects, list(set(ext_flds))
 
     def _update(self, arguments, pk=None, query=None):
         """_update: Update record(s) according to query."""
@@ -1047,6 +1056,7 @@ class RestletHandler(RequestHandler):
         _logger.debug('query: %s', query)
         _logger.debug('arguments: %s', arguments)
         result = None
+        ext_flds = list()
         if pk:
             inst = self.db_session.query(self._meta.table).get(pk)
             if not inst:
@@ -1068,7 +1078,7 @@ class RestletHandler(RequestHandler):
         else:
             pass
         self.db_session.flush()
-        return result
+        return result, ext_flds
 
     def _delete(self, pk=None, query=None):
         """_delete: Delete records from table according to query or pk."""
