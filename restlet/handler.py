@@ -455,7 +455,7 @@ class RestletBase(type):
         super_new = super(RestletBase, cls).__new__
         attr_meta = attrs.pop('Meta', None)
         attr_meta = attr_meta or Meta()
-        for k in ('table', 'pk_regex', 'pk_spec', 'allowed', 'denied', 'changable', 'readonly', 'invisible', 'order_by',
+        for k in ('table', 'pk_regex', 'pk_spec', 'allowed', 'denied', 'readonly', 'invisible', 'order_by',
                   'validators', 'encoders', 'encoders', 'decoders', 'generators', 'extensible', 'routes'):
             if not hasattr(attr_meta, k):
                 setattr(attr_meta, k, None)
@@ -465,6 +465,10 @@ class RestletBase(type):
         attr_meta.allowed = attr_meta.allowed or ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']
         if attr_meta.denied:
             attr_meta.allowed = list(set(attr_meta.allowed) - set(attr_meta.denied))
+        if attr_meta.table:
+            attr_meta.readonly = list(set(attr_meta.readonly) |
+                                      set(attr_meta.table.__table__.primary_key.columns.keys())) \
+                if attr_meta.readonly else attr_meta.table.__table__.primary_key.columns.keys()
         attr_meta.validators = attr_meta.validators or {}
         attr_meta.encoders = attr_meta.encoders or {}
         attr_meta.decoders = attr_meta.decoders or {}
@@ -1111,6 +1115,8 @@ class RestletHandler(RequestHandler):
                 raise exceptions.InvalidData()
             arguments = self._validate_object_data(self._encode_object_data(arguments))
             for k, v in arguments.items():
+                if k in self._meta.readonly:
+                    raise exceptions.InvalidData(message='Column(%s) is read-only!' % k)
                 setattr(inst, k, v)
             self.db_session.add(inst)
             result = inst
@@ -1119,6 +1125,9 @@ class RestletHandler(RequestHandler):
             if not isinstance(arguments, dict) or not arguments:
                 raise exceptions.InvalidData()
             arguments = self._validate_object_data(self._encode_object_data(arguments))
+            for k, v in arguments.items():
+                if k in self._meta.readonly:
+                    raise exceptions.InvalidData(message='Column(%s) is read-only!' % k)
             inst.update(arguments)
             result = inst
         else:
