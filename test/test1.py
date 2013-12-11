@@ -30,8 +30,8 @@ Base = declarative_base(cls=_Base)
 # Create Group, User, Permission
 
 group2permission_table = Table('groups2permissions', Base.metadata,
-                               Column('group_id', Integer, ForeignKey('groups.id')),
-                               Column('permission_id', Integer, ForeignKey('permissions.id')))
+                               Column('group_id', Integer, ForeignKey('groups.id'), primary_key=True),
+                               Column('permission_id', Integer, ForeignKey('permissions.id'), primary_key=True))
 
 
 class Group(Base):
