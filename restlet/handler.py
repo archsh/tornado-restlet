@@ -462,7 +462,9 @@ class RestletBase(type):
         if attr_meta.pk_regex is None and attr_meta.table:
             attr_meta.pk_regex = make_pk_regex(attr_meta.table.__table__.primary_key.columns.values())
         attr_meta.pk_spec = URLSpec(attr_meta.pk_regex[1], None) if attr_meta.pk_regex else None
-        attr_meta.allowed = attr_meta.allowed or ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
+        attr_meta.allowed = attr_meta.allowed or ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS']
+        if attr_meta.denied:
+            attr_meta.allowed = list(set(attr_meta.allowed) - set(attr_meta.denied))
         attr_meta.validators = attr_meta.validators or {}
         attr_meta.encoders = attr_meta.encoders or {}
         attr_meta.decoders = attr_meta.decoders or {}
@@ -841,6 +843,8 @@ class RestletHandler(RequestHandler):
                                         self._execute_finish)
             else:
                 _logger.debug('Go upper ...')
+                if self.request.method not in self._meta.allowed:
+                    raise exceptions.MethodNotAllowed()
                 method = getattr(self, self.request.method.lower())
                 self._when_complete(method(*self.path_args, **self.path_kwargs),
                                     self._execute_finish)
