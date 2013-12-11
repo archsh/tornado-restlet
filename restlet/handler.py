@@ -537,8 +537,11 @@ class RestletHandler(RequestHandler):
 
     def __init__(self, *args, **kwargs):
         skip_request = kwargs.pop('__skip_request', False)
+        default_db_session = kwargs.pop('__db_session', None)
         super(RestletHandler, self).__init__(*args, **kwargs)
         _logger.debug('%s [%s] > %s', self.__class__.__name__, self.request.method, self.request.uri)
+        if default_db_session:
+            self._db_session_ = default_db_session
         ## Here we re-construct the request.query and request.arguments
         ## the request.query is not a string of url query any more, it's converted to a disctionary;
         ## and request.arguments will only take the request.body parsed values, not including values in query;
@@ -596,7 +599,7 @@ class RestletHandler(RequestHandler):
             self.db_session.add_all(objects)
         else:
             self.db_session.add(objects)
-        self.db_session.commit()
+        self.db_session.flush()
         result = self._serialize(objects, extend_fields=ext_flds)
         return result
         #self.write('%s :> %s' % (self._meta.table, 'POST'))
@@ -612,7 +615,7 @@ class RestletHandler(RequestHandler):
         pk = kwargs.get(self._meta.pk_regex[0], None)
         controls, queries = query_reparse(self.request.query)
         objects, ext_flds = self._update(self.request.arguments, pk=pk, query=queries)
-        self.db_session.commit()
+        self.db_session.flush()
         result = self._serialize(objects, extend_fields=ext_flds)
         return result
         #self.write('%s :> %s' % (self._meta.table, 'PUT'))
@@ -700,6 +703,7 @@ class RestletHandler(RequestHandler):
 
     def _handle_request_exception(self, e):
         self.log_exception(*sys.exc_info())
+        self.db_session.rollback()
         if self._finished:
             # Extra errors after the request has been finished should
             # be logged, but there is no reason to continue to try and
@@ -1024,21 +1028,57 @@ class RestletHandler(RequestHandler):
             objdata = self._update_object_data(self._encode_object_data(self._validate_object_data(objdata)))
             obj = self._meta.table(**objdata)
             for k, v in relatedobjs.items():
-                if not isinstance(v, (list, tuple, dict)):
-                    raise exceptions.InvalidData(message='Invalid data for "%s"!' % k)  # continue
                 related_instrument = self._meta.table.__mapper__.relationships[k]
                 related_class = related_instrument.mapper.class_
-                if hasattr(related_class, '__handler__'):
-                    related_handler = getattr(related_class, '__handler__')
-                    related_objs, exflds = related_handler(self.application, self.request, __skip_request=True)._create(v)
-                    #setattr(obj, k, related_objs)
-                    if exflds:
-                        ext_flds.extend(['.'.join([k, x])for x in exflds])
+                related_class_pk_name = related_class.__table__.primary_key.columns.keys()[0]
+                exits_objs, new_objs, new_obj_datas = None, None, None
+                _logger.debug('%s: %s', k, v)
+                if isinstance(v, (list, tuple)):
+                    pks = map(lambda m: m[related_class_pk_name] if isinstance(m, dict) else m,
+                              filter(lambda itm: True if (isinstance(itm, dict) and related_class_pk_name in itm)
+                              or not isinstance(itm, dict) else False, v))
+                    _logger.debug('pks = %s', pks)
+                    new_obj_datas = filter(lambda m: isinstance(m, dict) and related_class_pk_name not in m, v)
+                    if pks:
+                        exits_objs = self.db_session.query(related_class).\
+                            filter(getattr(related_class, related_class_pk_name).in_(pks)).all()
+                        _logger.debug('exits_objs = %s', exits_objs)
+                elif isinstance(v, dict):
+                    if related_class_pk_name in v:
+                        exits_objs = self.db_session.query(related_class).get(v[related_class_pk_name])
+                        if not exits_objs:
+                            raise exceptions.NotFound(message='%s with pk "%s" was not found!' % (k, v))
                     else:
+                        new_obj_datas = v
+                else:
+                    exits_objs = self.db_session.query(related_class).get(v)
+                    if not exits_objs:
+                        raise exceptions.NotFound(message='%s with pk "%s" was not found!' % (k, v))
+                if new_obj_datas:
+                    if hasattr(related_class, '__handler__'):
+                        #related_handler = getattr(related_class, '__handler__')
+                        new_objs, exflds = related_class.__handler__(self.application,
+                                                                     self.request,
+                                                                     __db_session = self.db_session,
+                                                                     __skip_request=True)._create(new_obj_datas)
+                        #setattr(obj, k, related_objs)
+                        _logger.debug('new_objs: %s, exflds: %s', new_objs, exflds)
+                        if exflds:
+                            ext_flds.extend(['.'.join([k, x])for x in exflds])
+                        else:
+                            ext_flds.append(k)
+                    else:
+                        new_objs = related_class(**new_obj_datas) if isinstance(new_obj_datas, dict) \
+                            else [related_class(**xx) for xx in new_obj_datas]
                         ext_flds.append(k)
                 else:
-                    related_objs = related_class(**v) if isinstance(v, dict) else [related_class(**xx) for xx in v]
                     ext_flds.append(k)
+                related_objs = None
+                if exits_objs:
+                    related_objs = exits_objs
+                if new_objs:
+                    related_objs = new_objs if not related_objs else related_objs+new_objs
+                _logger.debug('[%s]related_objs: %s', k, related_objs)
                 setattr(obj, k, related_objs)
             return obj
 

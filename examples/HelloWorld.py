@@ -25,6 +25,9 @@ class Group(Base):
                          passive_deletes=True)
     permissions = relationship('Permission', secondary=group2permission_table, passive_deletes=True)
 
+    def __repr__(self):
+        return '<%s: %s>' % (self.__class__.__name__, self.id)
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -36,12 +39,18 @@ class User(Base):
     created = Column(DateTime, default=func.NOW())
     group_id = Column(Integer, ForeignKey('groups.id'), nullable=True)
 
+    def __repr__(self):
+        return '<%s: %s>' % (self.__class__.__name__, self.id)
+
 
 class Permission(Base):
     __tablename__ = 'permissions'
     id = Column(Integer, Sequence('permission_id_seq'), primary_key=True)
     name = Column(String(24), unique=True, nullable=False)
     description = Column(String(128), nullable=True)
+
+    def __repr__(self):
+        return '<%s: %s>' % (self.__class__.__name__, self.id)
 
 
 class GroupHandler(RestletHandler):
