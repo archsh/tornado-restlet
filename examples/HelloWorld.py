@@ -13,8 +13,10 @@ Base = declarative_base()
 
 
 group2permission_table = Table('groups2permissions', Base.metadata,
-                               Column('group_id', Integer, ForeignKey('groups.id', ondelete='CASCADE')),
-                               Column('permission_id', Integer, ForeignKey('permissions.id', ondelete='CASCADE')))
+                               Column('group_id', Integer,
+                                      ForeignKey('groups.id', ondelete='CASCADE'), primary_key=True),
+                               Column('permission_id', Integer,
+                                      ForeignKey('permissions.id', ondelete='CASCADE'), primary_key=True))
 
 
 class Group(Base):
@@ -76,8 +78,8 @@ class UserHandler(RestletHandler):
 
     class Meta:
         table = User
-        allowed = ('GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
-        denied = None  # Can be a tuple of HTTP METHODs
+        #allowed = ('GET', )  # 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS')
+        #denied = ('POST',)  # Can be a tuple of HTTP METHODs
         changable = ('fullname', 'password')  # None will make all fields changable
         readonly = ('name', 'id')  # None means no field is read only
         invisible = ('password', )  # None means no fields is invisible

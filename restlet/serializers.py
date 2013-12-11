@@ -38,6 +38,8 @@ def serialize_object(cls, inst, include_fields=None, extend_fields=None):
         return inst
     _logger.debug('serialize_object> extend_fields: %s', extend_fields)
     include_fields = list(set(include_fields or cls.__table__.c.keys()) | set(cls.__table__.primary_key.columns.keys()))
+    if hasattr(cls, '__handler__') and cls.__handler__._meta.invisible:
+        include_fields = list(set(include_fields) - set(cls.__handler__._meta.invisible))
     if not set(include_fields) <= set(cls.__table__.c.keys()):
         raise exceptions.BadRequest(message='Column(s) "%s" does not exists!' % ','.join(list(
             set(include_fields) - set(cls.__table__.c.keys())

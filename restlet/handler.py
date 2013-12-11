@@ -881,6 +881,8 @@ class RestletHandler(RequestHandler):
         }
 
         meta = self._meta
+        #if meta.invisible:
+        #    exclude_fields = exclude_fields.extend(meta.invisible) if exclude_fields else meta.invisible
         include_fields = list((set(include_fields or meta.table.__table__.columns.keys()) - set(exclude_fields or []))
                               | set(meta.table.__table__.primary_key.columns.keys()))
         if extend_fields:
