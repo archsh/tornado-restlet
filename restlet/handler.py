@@ -18,6 +18,7 @@ from tornado.log import access_log, app_log, gen_log
 from . import exceptions
 from .helpers import simple_field_processor
 from .serializers import serialize, serialize_query, serialize_object, ExtJsonEncoder
+from .route import route2handler
 try:
     import simplejson as json
 except:
@@ -112,29 +113,6 @@ def generator(*fields):
             f.__generates__.extends(fields)
         else:
             f.__generates__ = fields
-        return f
-    return wrap
-
-
-def route(pattern, *methods, **kwargs):
-    """Decorator for route a specific path pattern to a method of RestletHandler instance.
-    methods can be giving if is only for specified HTTP method(s).
-    eg:
-    class UserHandler(RestletHandler):
-        ...
-        @route(r'/login', 'POST','PUT'):
-        def do_login(self,*args, **kwrags):
-            ...
-            ...
-
-    """
-    assert pattern
-
-    def wrap(f):
-        if hasattr(f, '__route__'):
-            f.__route__.append((pattern, methods, kwargs))
-        else:
-            f.__route__ = [(pattern, methods, kwargs)]
         return f
     return wrap
 
@@ -657,7 +635,7 @@ class RestletHandler(RequestHandler):
                 'Model': self._meta.table.__name__,
                 'Fields': self._meta.table.__table__.c.keys()}
 
-    @route('_schema', 'GET')
+    @route2handler('_schema', 'GET')
     @request_handler
     def table_schema(self, *args, **kwargs):
         table = self._meta.table

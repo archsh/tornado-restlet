@@ -2,7 +2,8 @@
 import logging
 import datetime
 from restlet.application import RestletApplication
-from restlet.handler import RestletHandler, encoder, decoder, route
+from restlet.handler import RestletHandler, encoder, decoder
+from restlet.route import route2app, route2handler
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData, DateTime, func,
                         ForeignKey, Text, SmallInteger, Boolean, Numeric)
@@ -55,16 +56,19 @@ class Permission(Base):
         return '<%s: %s>' % (self.__class__.__name__, self.id)
 
 
+@route2app(r'/groups')
 class GroupHandler(RestletHandler):
     class Meta:
         table = Group
 
 
+@route2app(r'/permissions')
 class PermissionHandler(RestletHandler):
     class Meta:
         table = Permission
 
 
+@route2app(r'/users')
 class UserHandler(RestletHandler):
     """UserHandler to process User table."""
     def __init__(self, *args, **kwargs):
@@ -94,8 +98,8 @@ class UserHandler(RestletHandler):
         import hashlib
         return hashlib.new('md5', passwd).hexdigest()
 
-    @route(r'/(?P<uid>[0-9]+)/login', 'POST', 'PUT')
-    @route(r'/login', 'POST', 'PUT')
+    @route2handler(r'/(?P<uid>[0-9]+)/login', 'POST', 'PUT')
+    @route2handler(r'/login', 'POST', 'PUT')
     def do_login(self, *args, **kwargs):
         _logger.info("OK, It's done!: %s, %s, %s", args, kwargs, self.request.arguments)
         self.write("OK, It's done!: %s, %s" % (args, kwargs))
@@ -104,12 +108,11 @@ class UserHandler(RestletHandler):
 if __name__ == "__main__":
     import tornado.ioloop
     logging.basicConfig(level=logging.DEBUG)
-    application = RestletApplication([UserHandler.route_to('/users'),
-                                      GroupHandler.route_to('/groups'),
-                                      PermissionHandler.route_to('/permissions')],
-                                     dburi='postgresql://postgres:postgres@localhost/test',  # 'sqlite:///:memory:',
+    application = RestletApplication(route2app.get_routes(),
+                                     dburi='sqlite:///:memory:',
+                                     #'postgresql://postgres:postgres@localhost/test',  # 'sqlite:///:memory:',
                                      loglevel='DEBUG', debug=True, dblogging=True)
-    if False:
+    if True:
         Base.metadata.create_all(application.db_engine)
         session = application.new_db_session()
         group1 = Group(name='Group 1')

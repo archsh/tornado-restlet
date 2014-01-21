@@ -1,7 +1,30 @@
 import tornado.web
 
 
-class Route(object):
+def route2handler(pattern, *methods, **kwargs):
+    """Decorator for route a specific path pattern to a method of RestletHandler instance.
+    methods can be giving if is only for specified HTTP method(s).
+    eg:
+    class UserHandler(RestletHandler):
+        ...
+        @route(r'/login', 'POST','PUT'):
+        def do_login(self,*args, **kwrags):
+            ...
+            ...
+
+    """
+    assert pattern
+
+    def wrap(f):
+        if hasattr(f, '__route__'):
+            f.__route__.append((pattern, methods, kwargs))
+        else:
+            f.__route__ = [(pattern, methods, kwargs)]
+        return f
+    return wrap
+
+
+class route2app(object):
     """
     decorates RequestHandlers and builds up a list of routables handlers
 
@@ -21,14 +44,14 @@ class Route(object):
     Example
     -------
 
-    @route('/some/path')
+    @route2app('/some/path')
     class SomeRequestHandler(RequestHandler):
         def get(self):
             goto = self.reverse_url('other')
             self.redirect(goto)
 
     # so you can do myapp.reverse_url('other')
-    @route('/some/other/path', name='other')
+    @route2app('/some/other/path', name='other')
     class SomeOtherRequestHandler(RequestHandler):
         def get(self):
             goto = self.reverse_url('SomeRequestHandler')
@@ -77,7 +100,7 @@ class Route(object):
 
 
 def route_redirect(from_, to, name=None):
-    Route._routes.append(tornado.web.url(
+    route2app._routes.append(tornado.web.url(
         from_,
         tornado.web.RedirectHandler,
         dict(url=to),
