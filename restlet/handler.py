@@ -6,7 +6,7 @@ import traceback
 from sqlalchemy.orm.query import Query
 from sqlalchemy import Column, Integer, SmallInteger, BigInteger
 from sqlalchemy import String, Unicode
-from sqlalchemy import and_, or_, func
+from sqlalchemy import and_, or_, func, asc, desc
 from sqlalchemy.orm import joinedload, subqueryload
 from sqlalchemy.sql import expression
 from tornado.web import RequestHandler, HTTPError
@@ -359,15 +359,22 @@ def build_filter(model, key, value, joins=None):
 def build_order_by(cls, order_by):
     """build_order_by: build order by criterias with the given list order_by in strings."""
     def _gen_order_by(c, by):
-        return None, None
+        is_desc = False
+        if by and by.startswith('-'):
+            by = by[1:]
+            is_desc = True
+        if by and by in c.__table__.c.keys():
+            return None, desc(getattr(c, by)) if is_desc else asc(getattr(c, by))
+        else:
+            return None, None
 
     joins = list()
     order_bys = list()
     if not order_by:
-        return None, None
+        return joins, order_bys
     for x in order_by:
         j, o = _gen_order_by(cls, x)
-        if not o:
+        if o is None:
             continue
         order_bys.append(o)
         if j:
@@ -880,7 +887,9 @@ class RestletHandler(RequestHandler):
                 '__begin': begin,
             })
             if order_by:
-                pass
+                joins, orderbys = build_order_by(meta.table, order_by)
+                if orderbys:
+                    inst = inst.order_by(*orderbys)
             inst = inst.slice(begin, begin+limit)  # inst[begin:begin+limit]
             result['objects'] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
              # list(inst.values(*[getattr(self._meta.table, x) for x in include_fields]))
