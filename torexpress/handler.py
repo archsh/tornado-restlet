@@ -890,7 +890,8 @@ class ExpressHandler(RequestHandler):
                 joins, orderbys = build_order_by(meta.table, order_by)
                 if orderbys:
                     inst = inst.order_by(*orderbys)
-            inst = inst.slice(begin, begin+limit)  # inst[begin:begin+limit]
+            if limit >= 0:
+                inst = inst.slice(begin, begin+limit)  # inst[begin:begin+limit]
             result['objects'] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
              # list(inst.values(*[getattr(self._meta.table, x) for x in include_fields]))
         else:

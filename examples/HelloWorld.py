@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 import datetime
+import sys
+sys.path.append('..')
 from torexpress.application import ExpressApplication
 from torexpress.handler import ExpressHandler, encoder, decoder
 from torexpress.route import route2app, route2handler
@@ -8,8 +10,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData, DateTime, func,
                         ForeignKey, Text, SmallInteger, Boolean, Numeric)
 from sqlalchemy.orm import relationship, backref
-_logger = logging.getLogger('tornado.torexpress')
 
+
+_logger = logging.getLogger('tornado.torexpress')
 Base = declarative_base()
 
 
