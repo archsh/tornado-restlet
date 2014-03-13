@@ -1,4 +1,4 @@
 include ChangeLog.txt LICENES.txt README.md requirements.txt
 recursive-include test *.py *.sh
-recursive-include example *.py *.sh
+recursive-include examples *.py *.sh
 recursive-include docs *.md
