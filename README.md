@@ -1,4 +1,4 @@
-RESTlet for Tornado
+Express Extension for Tornado
 ======================
 
 **A RESTful extension for tornado.**
@@ -17,8 +17,8 @@ Quick Start
 ----------------------
 
 	# -*- coding: utf-8 -*-
-	from restlet.application import RestletApplication
-	from restlet.handler import RestletHandler
+	from torexpress.application import ExpressApplication
+	from torexpress.handler import ExpressHandler
 	from sqlalchemy.ext.declarative import declarative_base
 	from sqlalchemy import Column, Integer, String, Sequence, MetaData, ForeignKey
 	from sqlalchemy.orm import relationship, backref
@@ -33,7 +33,7 @@ Quick Start
 	    fullname = Column(String(50), nullable=True)
 	    password = Column(String(40), nullable=True)
 	
-	class UserHandler(RestletHandler):
+	class UserHandler(ExpressHandler):
 	    """UserHandler to process User table."""
 	
 	    class Meta:
@@ -46,7 +46,7 @@ Quick Start
 
 	if __name__ == "__main__":
 	    import tornado.ioloop
-	    application = RestletApplication([UserHandler.route_to('/users'), ],
+	    application = ExpressApplication([UserHandler.route_to('/users'), ],
 	                                     dburi='sqlite:///:memory:', loglevel='DEBUG', debug=True)
 	    Base.metadata.create_all(application.db_engine)
 	    application.listen(8888)

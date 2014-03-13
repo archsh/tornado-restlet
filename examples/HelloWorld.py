@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 import datetime
-from torexpress.application import RestletApplication
-from torexpress.handler import RestletHandler, encoder, decoder
+from torexpress.application import ExpressApplication
+from torexpress.handler import ExpressHandler, encoder, decoder
 from torexpress.route import route2app, route2handler
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData, DateTime, func,
@@ -57,19 +57,19 @@ class Permission(Base):
 
 
 @route2app(r'/groups')
-class GroupHandler(RestletHandler):
+class GroupHandler(ExpressHandler):
     class Meta:
         table = Group
 
 
 @route2app(r'/permissions')
-class PermissionHandler(RestletHandler):
+class PermissionHandler(ExpressHandler):
     class Meta:
         table = Permission
 
 
 @route2app(r'/users')
-class UserHandler(RestletHandler):
+class UserHandler(ExpressHandler):
     """UserHandler to process User table."""
     def __init__(self, *args, **kwargs):
         super(UserHandler, self).__init__(*args, **kwargs)
@@ -108,7 +108,7 @@ class UserHandler(RestletHandler):
 if __name__ == "__main__":
     import tornado.ioloop
     logging.basicConfig(level=logging.DEBUG)
-    application = RestletApplication(route2app.get_routes(),
+    application = ExpressApplication(route2app.get_routes(),
                                      dburi='sqlite:///:memory:',
                                      #'postgresql://postgres:postgres@localhost/test',  # 'sqlite:///:memory:',
                                      loglevel='DEBUG', debug=True, dblogging=True)

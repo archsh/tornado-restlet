@@ -430,14 +430,14 @@ def query_reparse(query):
     return controls, new_query
 
 
-class RestletBase(type):
+class ExpressBase(type):
     """
     Metaclass for all models.
     """
     def __new__(cls, name, bases, attrs):
         class Meta:
             pass
-        super_new = super(RestletBase, cls).__new__
+        super_new = super(ExpressBase, cls).__new__
         attr_meta = attrs.pop('Meta', None)
         attr_meta = attr_meta or Meta()
         for k in ('table', 'pk_regex', 'pk_spec', 'allowed', 'denied', 'readonly', 'invisible', 'order_by',
@@ -500,7 +500,7 @@ class RestletBase(type):
             setattr(cls, name, value)
 
 
-class RestletHandler(RequestHandler):
+class ExpressHandler(RequestHandler):
     """RestletHandler is based on tornado.web.RequestHandler
         For example:
         class UserHandler(RestletHandler):
@@ -524,12 +524,12 @@ class RestletHandler(RequestHandler):
             import hashlib
             return hashlib.new('md5', passwd).hexdigest()
     """
-    __metaclass__ = RestletBase
+    __metaclass__ = ExpressBase
 
     def __init__(self, *args, **kwargs):
         skip_request = kwargs.pop('__skip_request', False)
         default_db_session = kwargs.pop('__db_session', None)
-        super(RestletHandler, self).__init__(*args, **kwargs)
+        super(ExpressHandler, self).__init__(*args, **kwargs)
         _logger.debug('%s [%s] > %s', self.__class__.__name__, self.request.method, self.request.uri)
         if default_db_session:
             self._db_session_ = default_db_session
@@ -751,7 +751,7 @@ class RestletHandler(RequestHandler):
             self._handle_request_exception(e)
 
     def finish(self, chunk=None):
-        super(RestletHandler, self).finish(chunk=chunk)
+        super(ExpressHandler, self).finish(chunk=chunk)
         self.db_session.commit()
 
     @classmethod

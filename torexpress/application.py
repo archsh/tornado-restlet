@@ -4,14 +4,14 @@ from .cache import Dummy
 _logger = logging.getLogger('tornado.torexpress')
 
 
-class RestletApplication(Application):
+class ExpressApplication(Application):
     """RestletApplication is based on tornado.web.Application, manages a collection of RestletHandlers to make up a
     RESTful web application.
     """
 
     def __init__(self, handlers=None, default_host="", transforms=None,
                  wsgi=False, **settings):
-        super(RestletApplication, self).__init__(handlers=handlers, default_host=default_host,
+        super(ExpressApplication, self).__init__(handlers=handlers, default_host=default_host,
                                                  transforms=transforms, wsgi=wsgi, **settings)
         if settings.get('dburi'):
             from sqlalchemy.orm import sessionmaker
