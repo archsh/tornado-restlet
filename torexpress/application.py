@@ -1,7 +1,7 @@
 from tornado.web import Application
 import logging
 from .cache import Dummy
-_logger = logging.getLogger('tornado.restlet')
+_logger = logging.getLogger('tornado.torexpress')
 
 
 class RestletApplication(Application):

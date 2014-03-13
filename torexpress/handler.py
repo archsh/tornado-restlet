@@ -28,7 +28,7 @@ try:
 except:
     yaml = None
 json._default_encoder = ExtJsonEncoder()
-_logger = logging.getLogger('tornado.restlet')
+_logger = logging.getLogger('tornado.torexpress')
 
 
 def encoder(*fields):

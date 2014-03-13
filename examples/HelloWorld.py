@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 import logging
 import datetime
-from restlet.application import RestletApplication
-from restlet.handler import RestletHandler, encoder, decoder
-from restlet.route import route2app, route2handler
+from torexpress.application import RestletApplication
+from torexpress.handler import RestletHandler, encoder, decoder
+from torexpress.route import route2app, route2handler
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData, DateTime, func,
                         ForeignKey, Text, SmallInteger, Boolean, Numeric)
 from sqlalchemy.orm import relationship, backref
-_logger = logging.getLogger('tornado.restlet')
+_logger = logging.getLogger('tornado.torexpress')
 
 Base = declarative_base()
 

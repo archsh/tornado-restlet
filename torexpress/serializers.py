@@ -2,7 +2,7 @@ from sqlalchemy.orm.query import Query
 from . import exceptions
 import types
 import logging
-_logger = logging.getLogger('tornado.restlet')
+_logger = logging.getLogger('tornado.torexpress')
 
 
 def restruct_ext_fields(cls, extend_fields):

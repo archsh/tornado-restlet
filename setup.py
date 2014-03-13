@@ -1,16 +1,16 @@
 # -*- coding:utf-8 -*-
 from distutils.core import setup
-from restlet import __version__
+from torexpress import __version__, __author__
 
-setup(name='tornado-restlet',
+setup(name='tornado-torexpress',
       version=__version__,
-      description='Restlet, a RESTful extention on Tornado.',
+      description='Restlet, a RESTful extention on Tornado. %s ' % __author__,
       long_description=open("README.md").read(),
       author='Mingcai SHEN',
       author_email='archsh@gmail.com',
-      packages=['restlet'],
-      package_dir={'restlet': 'restlet'},
-      package_data={'restlet': ['stuff']},
+      packages=['torexpress'],
+      package_dir={'torexpress': 'torexpress'},
+      package_data={'torexpress': ['stuff']},
       license="Public domain",
       platforms=["any"],
       install_requires=[
@@ -19,4 +19,4 @@ setup(name='tornado-restlet',
           'simplejson>=2.3.2',
           'PyYAML>=3.10',
       ],
-      url='https://github.com/archsh/tornado-restlet')
+      url='https://github.com/archsh/tornado-torexpress')
