@@ -4,7 +4,7 @@ from torexpress import __version__, __author__
 
 setup(name='tornado-torexpress',
       version=__version__,
-      description='Restlet, a RESTful extention on Tornado. %s ' % __author__,
+      description='A RESTful extention on Tornado. %s ' % __author__,
       long_description=open("README.md").read(),
       author='Mingcai SHEN',
       author_email='archsh@gmail.com',
