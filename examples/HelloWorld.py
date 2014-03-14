@@ -110,11 +110,16 @@ class UserHandler(ExpressHandler):
 
 if __name__ == "__main__":
     import tornado.ioloop
-    logging.basicConfig(level=logging.DEBUG)
+    #from tornado.platform.twisted import TwistedIOLoop
+    #from twisted.internet import reactor
+    #TwistedIOLoop().install()
+    # Set up your tornado application as usual using `IOLoop.instance`
+
+    logging.basicConfig(level=logging.CRITICAL)
     application = ExpressApplication(route2app.get_routes(),
                                      dburi='sqlite:///:memory:',
                                      #'postgresql://postgres:postgres@localhost/test',  # 'sqlite:///:memory:',
-                                     loglevel='DEBUG', debug=True, dblogging=True)
+                                     loglevel='CRITICAL', debug=False, dblogging=False)
     if True:
         Base.metadata.create_all(application.db_engine)
         session = application.new_db_session()
@@ -143,4 +148,5 @@ if __name__ == "__main__":
         session.commit()
 
     application.listen(8888)
+    #reactor.run()
     tornado.ioloop.IOLoop.instance().start()
