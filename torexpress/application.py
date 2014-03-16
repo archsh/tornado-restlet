@@ -25,7 +25,6 @@ class ExpressApplication(Application):
             self.cache = Dummy()
         else:
             self.cache = Dummy()
-        _logger.setLevel(settings.get('loglevel', 'CRITICAL'))
 
     def new_db_session(self, *args, **kwargs):
         """new_db_session: create a new db session with the default sessionmaker from application.

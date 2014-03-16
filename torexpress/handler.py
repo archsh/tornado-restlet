@@ -6,6 +6,7 @@ import traceback
 from sqlalchemy.orm.query import Query
 from sqlalchemy import Column, Integer, SmallInteger, BigInteger
 from sqlalchemy import String, Unicode
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import and_, or_, func, asc, desc
 from sqlalchemy.orm import joinedload, subqueryload
 from sqlalchemy.sql import expression
@@ -29,6 +30,15 @@ except:
     yaml = None
 json._default_encoder = ExtJsonEncoder()
 _logger = logging.getLogger('tornado.torexpress')
+
+
+def log_timing(tm=None, msg=None):
+    import datetime
+    msg = ('<%s>: ' % msg) or ''
+    tnew = datetime.datetime.now()
+    tused = '' if not tm else ' (%s)' % (tnew-tm)
+    _logger.info('%s%s%s', msg, tnew, tused)
+    return tnew
 
 
 def encoder(*fields):
@@ -123,8 +133,9 @@ def request_handler(view):
     """
     def f(self, *args, **kwargs):
         _logger.debug('Headers: %s', self.request.headers)
+        t1 = log_timing(msg='1>%s Start' % view.__name__)
         result = view(self, *args, **kwargs)
-
+        t2 = log_timing(tm=t1, msg='2>%s Done' % view.__name__)
         if isinstance(result, (dict, list, tuple, types.GeneratorType)):
             if isinstance(result, types.GeneratorType):
                 result = list(result)
@@ -140,7 +151,7 @@ def request_handler(view):
         else:
             _logger.info('Result type is: %s', type(result))
             raise exceptions.RestletError()
-
+        log_timing(tm=t2, msg='3>Write output done!')
     return f
 
 
@@ -230,6 +241,8 @@ def make_pk_regex(pk_clmns):
             return pk_clmns.name, r'(?P<%s>[0-9]+)' % pk_clmns.name
         elif isinstance(pk_clmns.type, (String, Unicode)):
             return pk_clmns.name, r'(?P<%s>[0-9A-Za-z_-]+)' % pk_clmns.name
+        elif isinstance(pk_clmns.type, (UUID,)):
+            return pk_clmns.name, r'(?P<%s>[0-9A-Fa-f-]{32,38})' % pk_clmns.name
         else:
             return None  # , None
     elif isinstance(pk_clmns, (list, tuple)):
@@ -387,9 +400,12 @@ def find_join_loads(cls, extend_fields):
     def _relations_(c, exts):
         if not exts:
             return None
-        ret = []
+        tt1 = log_timing(msg='_relations_:1')
+        ret = list()
         r = exts.pop(0)
-        if r in c.__mapper__.relationships.keys():
+        keys = c.__mapper__.relationships.keys()
+        tt2 = log_timing(tm=tt1, msg='_relations_:2')
+        if r in keys:
             ret.append(r)
             r1 = _relations_(c.__mapper__.relationships[r].mapper.class_, exts)
             if r1:
@@ -398,11 +414,14 @@ def find_join_loads(cls, extend_fields):
 
     if not extend_fields:
         return None
+    _logger.info('extend_fields> %s', extend_fields)
+    t1 = log_timing(msg='find_join_loads:1')
     result = list()
     for x in extend_fields:
         y = _relations_(cls, x.split('.'))
         if y:
             result.append('.'.join(y))
+    t2 = log_timing(tm=t1, msg='find_join_loads:2')
     return result
 
 
@@ -569,8 +588,13 @@ class ExpressHandler(RequestHandler):
         _logger.debug('Request::uri> %s', self.request.uri)
         _logger.debug('Request::query> %s', self.request.query)
         _logger.debug('Request::arguments> %s', self.request.arguments)
+        _logger.debug('self._meta.pk_regex: %s', self._meta.pk_regex)
+        t1 = log_timing(msg='GET Start')
         controls, queries = query_reparse(self.request.query)
-        return self._read(pk=kwargs.get(self._meta.pk_regex[0], None), query=queries, **controls)
+        t2 = log_timing(tm=t1, msg='Query Parsed')
+        result = self._read(pk=kwargs.get(self._meta.pk_regex[0], None), query=queries, **controls)
+        log_timing(tm=t2, msg='Read Done')
+        return result
 
     @request_handler
     def post(self, *args, **kwargs):
@@ -791,11 +815,13 @@ class ExpressHandler(RequestHandler):
             return escape.url_unescape(s, encoding=None,
                                        plus=False)
         if not self._finished:
-            if self._meta.routes and self.path_kwargs.get('relpath', None):
+            relpath = self.path_kwargs.get('relpath', None)
+            relpath = None if relpath == '/' else relpath
+            if self._meta.routes and relpath:
                 method = None
                 _logger.debug('Matching routes ...')
                 for spec in self._meta.routes:
-                    match = spec.regex.match(self.path_kwargs.get('relpath'))
+                    match = spec.regex.match(relpath)
                     if match:
                         _logger.debug('Matched route %s ...', spec)
                         if spec.methods and self.request.method not in spec.methods:
@@ -813,7 +839,7 @@ class ExpressHandler(RequestHandler):
                 if not method:
                     _logger.debug('Matching pk_spec ...')
                     spec = self._meta.pk_spec
-                    match = spec.regex.match(self.path_kwargs.get('relpath')) if spec else None
+                    match = spec.regex.match(relpath) if spec else None
                     if match:
                         if spec.regex.groups:
                             if spec.regex.groupindex:
@@ -860,8 +886,8 @@ class ExpressHandler(RequestHandler):
             '__limit': $(LIMIT_NUM),
             '__begin': $(OFFSET),
             '__model': '$(NAME_OF_MODEL)',
-            'objects': [$(LIST_OF_RECORDS)], ## For multiple records mode
-            'object': {$(RECORD)}, ## For one record mode
+            '$(NAME_OF_MODEL)': [$(LIST_OF_RECORDS)], ## For multiple records mode
+            '$(NAME_OF_MODEL)': {$(RECORD)}, ## For one record mode
         }
         """
         result = {
@@ -892,17 +918,17 @@ class ExpressHandler(RequestHandler):
                     inst = inst.order_by(*orderbys)
             if limit >= 0:
                 inst = inst.slice(begin, begin+limit)  # inst[begin:begin+limit]
-            result['objects'] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
+            result[self._meta.table.__name__] = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
              # list(inst.values(*[getattr(self._meta.table, x) for x in include_fields]))
         else:
             _logger.debug("Inst >>> %s", inst)
             _logger.debug("Include Fields: %s", include_fields)
             objs = serialize(meta.table, inst, include_fields=include_fields, extend_fields=extend_fields)
             if isinstance(objs, (list, tuple)):
-                result['objects'] = objs
+                result[self._meta.table.__name__] = objs
                 result['__count'] = len(objs)
             else:
-                result['object'] = objs
+                result[self._meta.table.__name__] = objs
             # dict([(k, getattr(inst, k)) for k in include_fields])
         return result
 
@@ -974,6 +1000,7 @@ class ExpressHandler(RequestHandler):
     def _read(self, pk=None, query=None,
               include_fields=None, exclude_fields=None, extend_fields=None, order_by=None, begin=None, limit=None):
         """_read: read record(s) from table."""
+        t1 = log_timing(msg='READ START:::')
         _logger.debug('%s:> _read', self.__class__.__name__)
         _logger.debug('pk: %s', pk)
         _logger.debug('query: %s', query)
@@ -984,8 +1011,10 @@ class ExpressHandler(RequestHandler):
         _logger.debug('begin: %s', begin)
         _logger.debug('limit: %s', limit)
         join_loads = find_join_loads(self._meta.table, extend_fields)
+        t11 = log_timing(tm=t1, msg='READ JOIN LOADS 1 DONE:::')
         join_loads = [joinedload(x) for x in join_loads] if join_loads else None
         _logger.debug('join_loads: %s', join_loads)
+        t2 = log_timing(tm=t11, msg='READ JOIN LOADS 2 DONE:::')
         if pk:
             inst = self.db_session.query(self._meta.table).options(*join_loads).get(pk) if join_loads \
                 else self.db_session.query(self._meta.table).get(pk)
@@ -996,12 +1025,15 @@ class ExpressHandler(RequestHandler):
             if join_loads:
                 inst = inst.options(*join_loads)
         _logger.debug('Inst: %s', type(inst))
-        return self._serialize(inst, include_fields=include_fields,
-                               exclude_fields=exclude_fields,
-                               extend_fields=extend_fields,
-                               order_by=order_by,
-                               begin=begin,
-                               limit=limit)
+        t3 = log_timing(tm=t2, msg='READ QUERY DONE:::')
+        result = self._serialize(inst, include_fields=include_fields,
+                                 exclude_fields=exclude_fields,
+                                 extend_fields=extend_fields,
+                                 order_by=order_by,
+                                 begin=begin,
+                                 limit=limit)
+        log_timing(tm=t3, msg='READ SERIALIZE DONE:::')
+        return result
 
     def _create(self, arguments):
         """_create: Create record(s)."""

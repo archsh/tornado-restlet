@@ -1,4 +1,6 @@
 import tornado.web
+import logging
+_logger = logging.getLogger('tornado.torexpress')
 
 
 def route2handler(pattern, *methods, **kwargs):
@@ -76,14 +78,17 @@ class route2app(object):
         """gets called when we class decorate"""
         name = self.name or _handler.__name__
         if not self._uri:
-            pattern = r'/(?P<relpath>.*)'
+            pattern = r'(?P<relpath>/.*)?'
         else:
-            pattern = self._uri + r'(?P<relpath>.*)'
+            pattern = self._uri + r'(?P<relpath>/.*)?'
         self._routes.append(tornado.web.url(pattern, _handler, name=name))
         return _handler
 
     @classmethod
     def get_routes(klass):
+        _logger.debug('route2app> routes: \n%s\n',
+                      '\n'.join([('%s >>>> %s (%s)' % (r.regex.pattern, r.handler_class.__name__, r.name))
+                                 for r in klass._routes]))
         return klass._routes
 
 # route_redirect provided by Peter Bengtsson via the Tornado mailing list
