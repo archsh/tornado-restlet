@@ -115,11 +115,11 @@ if __name__ == "__main__":
     #TwistedIOLoop().install()
     # Set up your tornado application as usual using `IOLoop.instance`
 
-    logging.basicConfig(level=logging.CRITICAL)
+    logging.basicConfig(level=logging.DEBUG)
     application = ExpressApplication(route2app.get_routes(),
                                      dburi='sqlite:///:memory:',
                                      #'postgresql://postgres:postgres@localhost/test',  # 'sqlite:///:memory:',
-                                     loglevel='CRITICAL', debug=False, dblogging=False)
+                                     loglevel='CRITICAL', debug=False, dblogging=False, autoreload=True)
     if True:
         Base.metadata.create_all(application.db_engine)
         session = application.new_db_session()
