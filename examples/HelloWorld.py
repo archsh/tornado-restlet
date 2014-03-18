@@ -4,8 +4,10 @@ import datetime
 import sys
 sys.path.append('..')
 from torexpress.application import ExpressApplication
-from torexpress.handler import ExpressHandler, encoder, decoder
+from torexpress.handler import ExpressHandler, encoder, decoder, request_handler
 from torexpress.route import route2app, route2handler
+from torexpress.predicates import require_auth, BaseAuthenticator
+from torexpress.exceptions import Forbidden, BadRequest
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (Table, Column, Integer, String, Sequence, MetaData, DateTime, func,
                         ForeignKey, Text, SmallInteger, Boolean, Numeric)
@@ -59,10 +61,27 @@ class Permission(Base):
         return '<%s: %s>' % (self.__class__.__name__, self.id)
 
 
+class MyAuthenticator(BaseAuthenticator):
+    def do_auth(self, handler, *args, **kwargs):
+        _logger.debug('BaseAuthenticator> handler=%s', handler)
+        _logger.debug('BaseAuthenticator> args=%s, kwargs=%s', args, kwargs)
+        _logger.debug('BaseAuthenticator> init_kwargs=%s', self._init_kwargs_)
+        raise Forbidden()
+
+
 @route2app(r'/groups')
 class GroupHandler(ExpressHandler):
     class Meta:
         table = Group
+        required = (BaseAuthenticator(hello="Group", message="Great!", another='OK.'),)
+
+    @route2handler(r'/permissions', 'GET')
+    @request_handler
+    @require_auth(MyAuthenticator(hello="Group", message="Great!", another='OK.'))
+    def permissions(self, *args, **kwargs):
+        return {"message": "This is for test!",
+                "args": args,
+                "kwargs": kwargs}
 
 
 @route2app(r'/permissions')
@@ -103,9 +122,11 @@ class UserHandler(ExpressHandler):
 
     @route2handler(r'/(?P<uid>[0-9]+)/login', 'POST', 'PUT')
     @route2handler(r'/login', 'POST', 'PUT')
+    @request_handler
     def do_login(self, *args, **kwargs):
         _logger.info("OK, It's done!: %s, %s, %s", args, kwargs, self.request.arguments)
-        self.write("OK, It's done!: %s, %s" % (args, kwargs))
+        #self.write("OK, It's done!: %s, %s" % (args, kwargs))
+        return {"result": True, "message": "It's done!", "args": args, "kwargs": kwargs}
 
 
 if __name__ == "__main__":

@@ -150,7 +150,7 @@ def request_handler(view):
             self.write(result)
         else:
             _logger.info('Result type is: %s', type(result))
-            raise exceptions.RestletError()
+            raise exceptions.ExpressError()
         log_timing(tm=t2, msg='3>Write output done!')
     return f
 
@@ -460,7 +460,7 @@ class ExpressBase(type):
         attr_meta = attrs.pop('Meta', None)
         attr_meta = attr_meta or Meta()
         for k in ('table', 'pk_regex', 'pk_spec', 'allowed', 'denied', 'readonly', 'invisible', 'order_by',
-                  'validators', 'encoders', 'encoders', 'decoders', 'generators', 'extensible', 'routes'):
+                  'validators', 'encoders', 'encoders', 'decoders', 'generators', 'extensible', 'routes', 'required'):
             if not hasattr(attr_meta, k):
                 setattr(attr_meta, k, None)
         if attr_meta.pk_regex is None and attr_meta.table:
@@ -478,6 +478,8 @@ class ExpressBase(type):
         attr_meta.decoders = attr_meta.decoders or {}
         attr_meta.generators = attr_meta.generators or {}
         attr_meta.routes = list()
+        if attr_meta.required and not isinstance(attr_meta.required, (list, tuple, dict)):
+            raise Exception('"required" must be a tuple or list or dict or None.')
         for k, v in attrs.items():  # collecting decorated functions.
             if not hasattr(v, '__call__'):
                 continue
@@ -580,6 +582,22 @@ class ExpressHandler(RequestHandler):
             self.request.query = escape.parse_qs_bytes(self.request.query, keep_blank_values=True)
             revert_list_of_qs(self.request.query)
 
+    def _execute_required(self, method=None, *args, **kwargs):
+        _logger.debug(">>>>>_execute_required:: %s", self._meta.required)
+        if method is None:
+            if self._meta.required and isinstance(self._meta.required, (tuple, list)):
+                for rf in self._meta.required:
+                    rf(self, *args, **kwargs)
+        else:
+            if self._meta.required and isinstance(self._meta.required, (dict,)):
+                rfs = self._meta.required.get(method, None)
+                if rfs is not None:
+                    if isinstance(rfs, (list, tuple)):
+                        for rf in rfs:
+                            rf(self, *args, **kwargs)
+                    else:
+                        rfs(self, *args, **kwargs)
+
     @request_handler
     def get(self, *args, **kwargs):
         _logger.debug('[%s] GET> args(%s), kwargs(%s)', self.__class__.__name__, args, kwargs)
@@ -590,6 +608,7 @@ class ExpressHandler(RequestHandler):
         _logger.debug('Request::arguments> %s', self.request.arguments)
         _logger.debug('self._meta.pk_regex: %s', self._meta.pk_regex)
         t1 = log_timing(msg='GET Start')
+        self._execute_required(method='get', *args, **kwargs)
         controls, queries = query_reparse(self.request.query)
         t2 = log_timing(tm=t1, msg='Query Parsed')
         result = self._read(pk=kwargs.get(self._meta.pk_regex[0], None), query=queries, **controls)
@@ -604,6 +623,7 @@ class ExpressHandler(RequestHandler):
         _logger.debug('Request::uri> %s', self.request.uri)
         _logger.debug('Request::query> %s', self.request.query)
         _logger.debug('Request::arguments> %s', self.request.arguments)
+        self._execute_required(method='post', *args, **kwargs)
         pk = kwargs.get(self._meta.pk_regex[0], None)
         controls, queries = query_reparse(self.request.query)
         if pk or queries:
@@ -627,6 +647,7 @@ class ExpressHandler(RequestHandler):
         _logger.debug('Request::uri> %s', self.request.uri)
         _logger.debug('Request::query> %s', self.request.query)
         _logger.debug('Request::arguments> %s', self.request.arguments)
+        self._execute_required(method='put', *args, **kwargs)
         pk = kwargs.get(self._meta.pk_regex[0], None)
         controls, queries = query_reparse(self.request.query)
         objects, ext_flds = self._update(self.request.arguments, pk=pk, query=queries)
@@ -644,6 +665,7 @@ class ExpressHandler(RequestHandler):
         _logger.debug('Request::query> %s', self.request.query)
         #_logger.debug('Request::arguments> %s', self.request.arguments)
         #self.write('%s :> %s' % (self._meta.table, 'DELETE'))
+        self._execute_required(method='delete', *args, **kwargs)
         pk = kwargs.get(self._meta.pk_regex[0], None)
         controls, queries = query_reparse(self.request.query)
         objects = self._delete(pk=pk, query=queries)
@@ -657,10 +679,12 @@ class ExpressHandler(RequestHandler):
         _logger.debug('Request::uri> %s', self.request.uri)
         _logger.debug('Request::query> %s', self.request.query)
         _logger.debug('Request::arguments> %s', self.request.arguments)
+        self._execute_required(method='get', *args, **kwargs)
         self.write('%s :> %s' % (self._meta.table, 'HEAD'))
 
     @request_handler
     def options(self, *args, **kwargs):
+        self._execute_required(method='options', *args, **kwargs)
         self.set_header('Allowed', ','.join(self._meta.allowed))
         return {'Allowed': self._meta.allowed,
                 'Model': self._meta.table.__name__,
@@ -669,6 +693,7 @@ class ExpressHandler(RequestHandler):
     @route2handler('_schema', 'GET')
     @request_handler
     def table_schema(self, *args, **kwargs):
+        self._execute_required(method='options', *args, **kwargs)
         table = self._meta.table
         fields = dict([(c.name, {'type': '%s' % c.type, 'default': '%s' % c.default if c.default else c.default,
                                  'nullable': c.nullable, 'unique': c.unique,
@@ -730,7 +755,7 @@ class ExpressHandler(RequestHandler):
                 self.send_error(500, exc_info=sys.exc_info())
             else:
                 self.send_error(e.status_code, exc_info=sys.exc_info())
-        elif isinstance(e, exceptions.RestletError):
+        elif isinstance(e, exceptions.ExpressError):
             self.send_error(e.error, exc_info=sys.exc_info(), message=e.message)
         else:
             self.send_error(500, exc_info=sys.exc_info())
@@ -765,6 +790,7 @@ class ExpressHandler(RequestHandler):
             self.path_args = [self.decode_argument(arg) for arg in args]
             self.path_kwargs = dict((k, self.decode_argument(v, name=k))
                                     for (k, v) in kwargs.items())
+            self._execute_required(method=None, *args, **kwargs)
             # If XSRF cookies are turned on, reject form submissions without
             # the proper cookie
             if self.request.method not in ("GET", "HEAD", "OPTIONS") and \

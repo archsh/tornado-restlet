@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-class RestletError(Exception):
+class ExpressError(Exception):
     _error_ = 500
     _message_ = None
 
     def __init__(self, status=None, message=None, *args, **kwargs):
-        super(RestletError, self).__init__(*args, **kwargs)
+        super(ExpressError, self).__init__(*args, **kwargs)
         self.status = status
         self.message = message or self._message_
 
@@ -13,35 +13,35 @@ class RestletError(Exception):
         return self._error_
 
 
-class BadRequest(RestletError):
+class BadRequest(ExpressError):
     _error_ = 400
 
 
-class Unauthorized(RestletError):
+class Unauthorized(ExpressError):
     _error_ = 401
 
 
-class Forbidden(RestletError):
+class Forbidden(ExpressError):
     _error_ = 403
 
 
-class NotFound(RestletError):
+class NotFound(ExpressError):
     _error_ = 404
 
 
-class MethodNotAllowed(RestletError):
+class MethodNotAllowed(ExpressError):
     _error_ = 405
 
 
-class NotImplemented(RestletError):
+class NotImplemented(ExpressError):
     _error_ = 501
 
 
-class InvalidExpression(RestletError):
+class InvalidExpression(ExpressError):
     _error_ = 400
     _message_ = 'Invalid Expression.'
 
 
-class InvalidData(RestletError):
+class InvalidData(ExpressError):
     _error_ = 400
     _message_ = 'Invalid Data.'
