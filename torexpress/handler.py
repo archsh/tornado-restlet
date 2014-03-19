@@ -749,6 +749,7 @@ class ExpressHandler(RequestHandler):
     def _handle_request_exception(self, e):
         self.log_exception(*sys.exc_info())
         self.db_session.rollback()
+        _logger.exception('>>> %s', e)
         if self._finished:
             # Extra errors after the request has been finished should
             # be logged, but there is no reason to continue to try and
@@ -763,7 +764,7 @@ class ExpressHandler(RequestHandler):
         elif isinstance(e, exceptions.ExpressError):
             self.send_error(e.error, exc_info=sys.exc_info(), message=e.message)
         else:
-            self.send_error(500, exc_info=sys.exc_info())
+            self.send_error(500, exc_info=sys.exc_info(), message=('%s' % e).decode('utf8'))
 
     def write_error(self, status_code, **kwargs):
         error_body = {
