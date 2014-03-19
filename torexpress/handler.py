@@ -497,9 +497,14 @@ class ExpressBase(type):
                     attr_meta.generators[f] = v
             elif hasattr(v, '__route__'):
                 attr_meta.routes.extend([URLSpec(x[0], v, x[1], x[2]) for x in v.__route__])
-        for bcls in bases:  # TODO: To be improved for instance if there're multiple bases
+        for bcls in bases:
+            if not issubclass(bcls, cls):
+                continue  # Ignored the base classes when it's not from ExpressBase.
             if hasattr(bcls, '_meta') and hasattr(bcls._meta, 'routes') and bcls._meta.routes:
                 attr_meta.routes.extend(bcls._meta.routes)
+        ### Only takes the required meta attribute from base class when it is not defined in this new class
+        if attr_meta.required is None and bases and hasattr(bases[0], '_meta') and hasattr(bases[0]._meta, 'required'):
+            attr_meta.required = bases[0]._meta.required
         if attr_meta.table:
             for c in attr_meta.table.__table__.c.values():
                 if c.name in attr_meta.encoders:
