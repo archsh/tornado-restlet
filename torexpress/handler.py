@@ -174,8 +174,8 @@ class URLSpec(object):
         * ``name`` (optional): A name for this handler.  Used by
           `Application.reverse_url`.
         """
-        if not pattern.startswith('/') and not pattern.startswith('^'):
-            pattern = r'^/' + pattern
+        #if not pattern.startswith('/') and not pattern.startswith('^'):
+        #    pattern = r'^/' + pattern
         if not pattern.endswith('$'):
             pattern += '$'
         self.regex = re.compile(pattern)
@@ -506,7 +506,7 @@ class ExpressBase(type):
         if attr_meta.required is None and bases and hasattr(bases[0], '_meta') and hasattr(bases[0]._meta, 'required'):
             attr_meta.required = bases[0]._meta.required
         if attr_meta.table:
-            for c in attr_meta.table.__table__.c.values():
+            for c in attr_meta.table.__mapper__.c.values():
                 if c.name in attr_meta.encoders:
                     continue
                 pf = simple_field_processor(c)
@@ -703,7 +703,7 @@ class ExpressHandler(RequestHandler):
         fields = dict([(c.name, {'type': '%s' % c.type, 'default': '%s' % c.default if c.default else c.default,
                                  'nullable': c.nullable, 'unique': c.unique,
                                  'doc': c.doc, 'primary_key': c.primary_key})
-                       for c in table.__table__.columns.values()])
+                       for c in table.__mapper__.columns.values()])
         relationships = dict([(n, {'target': r.mapper.class_.__name__,
                                    'direction': r.direction.name,
                                    'field': ['%s.%s' % (c.table, c.name) for c in r._calculated_foreign_keys]})
@@ -804,6 +804,7 @@ class ExpressHandler(RequestHandler):
                 self.check_xsrf_cookie()
             self._when_complete(self.prepare(), self._execute_method)
         except Exception as e:
+            _logger.exception('>>> %s', e)
             self._handle_request_exception(e)
 
     def finish(self, chunk=None):
@@ -848,8 +849,10 @@ class ExpressHandler(RequestHandler):
                                        plus=False)
         if not self._finished:
             relpath = self.path_kwargs.get('relpath', None)
-            relpath = None if relpath == '/' else relpath
-            if self._meta.routes and relpath:
+            if relpath is not None:
+                relpath = relpath.lstrip('/')
+            _logger.debug('relpath: %s', relpath)
+            if relpath:
                 method = None
                 _logger.debug('Matching routes ...')
                 for spec in self._meta.routes:
@@ -871,7 +874,9 @@ class ExpressHandler(RequestHandler):
                 if not method:
                     _logger.debug('Matching pk_spec ...')
                     spec = self._meta.pk_spec
+                    _logger.debug('Matching pk_spec ...spec=%s, relpath=%s', spec, relpath)
                     match = spec.regex.match(relpath) if spec else None
+                    _logger.debug('Matching pk_spec ...match=%s', match)
                     if match:
                         if spec.regex.groups:
                             if spec.regex.groupindex:
@@ -884,7 +889,7 @@ class ExpressHandler(RequestHandler):
                         self._when_complete(method(*self.path_args, **self.path_kwargs),
                                             self._execute_finish)
                     else:
-                        raise exceptions.NotFound()
+                        raise exceptions.NotFound(message='Pk not found!')
                 else:
                     self._when_complete(method(self, *self.path_args, **self.path_kwargs),
                                         self._execute_finish)
@@ -930,7 +935,7 @@ class ExpressHandler(RequestHandler):
         meta = self._meta
         #if meta.invisible:
         #    exclude_fields = exclude_fields.extend(meta.invisible) if exclude_fields else meta.invisible
-        include_fields = list((set(include_fields or meta.table.__table__.columns.keys()) - set(exclude_fields or []))
+        include_fields = list((set(include_fields or meta.table.__mapper__.columns.keys()) - set(exclude_fields or []))
                               | set(meta.table.__table__.primary_key.columns.keys()))
         if extend_fields:
             _logger.debug('extend_fields: %s', extend_fields)
